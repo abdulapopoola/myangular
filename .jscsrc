@@ -1,0 +1,6 @@
+{
+    "preset": "google",
+    "requireCurlyBraces": null,
+    "validateIndentation": null,
+    "disallowTrailingWhitespace": true
+}
