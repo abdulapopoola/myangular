@@ -183,5 +183,133 @@ describe('Scope', function () {
             scope.$digest();
             expect(scope.counter).toBe(1);
         });
+
+        it('compares based on value if enabled', function () {
+            scope.aValue = [1, 2, 3];
+            scope.counter = 0;
+
+            scope.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                },
+                true
+            );
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.aValue.push(4);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it('correctly handles NaNs', function () {
+            scope.number = 0 / 0;
+            scope.counter = 0;
+
+            scope.$watch(
+                function (scope) { return scope.number; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                },
+                true
+            );
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+        });
+
+        it('catches exceptions in watch functions and continues', function () {
+            scope.aValue = 'abc';
+            scope.counter = 0;
+
+            scope.$watch(
+                function (scope) { throw 'Error'; },
+                function (newValue, oldValue, scope) { }
+            );
+            scope.$watch(
+                function (scope) { return scope.number; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+        });
+
+        it('catches exceptions in listener functions and continues', function () {
+            scope.aValue = 'abc';
+            scope.counter = 0;
+
+            scope.$watch(
+                function (scope) { },
+                function (newValue, oldValue, scope) { throw 'Error'; }
+            );
+            scope.$watch(
+                function (scope) { return scope.number; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+        });
+
+        it('allows destroying a $watch with a removal function', function () {
+            scope.aValue = 'abc';
+            scope.counter = 0;
+
+            var destroyWatch = scope.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) { scope.counter++; }
+            );
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            
+            scope.aValue = 'def';
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+            
+            scope.aValue = 'ghi';
+            destroyWatch();
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it('allows destroying a $watch during $digest', function () {
+            scope.aValue = 'abc';
+            var watchCalls = [];
+            
+            scope.$watch(
+                function(scope) {
+                    watchCalls.push('first');
+                    return scope.aValue;
+                }
+            );
+
+            var destroyWatch = scope.$watch(
+                function(scope) {
+                    watchCalls.push('second');
+                    destroyWatch();
+                }
+            );
+            
+            scope.$watch(
+                function(scope) {
+                    watchCalls.push('third');
+                    return scope.aValue;
+                }
+            );
+
+            scope.$digest();
+            expect(watchCalls).toEqual(['first', 'second', 'third', 'first', 'third']);
+        });       
     });
 });
