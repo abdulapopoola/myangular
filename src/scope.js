@@ -18,10 +18,11 @@ Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
     };
     this.$$watchers.unshift(watcher);
     this.$$lastDirtyWatch = null;
-    
+
     var that = this;
-    return function() {
-        _.remove(that.$$watchers, watcher);    
+    return function () {
+        that.$$lastDirtyWatch = null;
+        _.remove(that.$$watchers, watcher);
     };
 };
 
@@ -31,17 +32,19 @@ Scope.prototype.$digestOnce = function () {
 
     _.forEachRight(this.$$watchers, function (watcher) {
         try {
-            var newValue = watcher.watchFn(that);
-            var oldValue = watcher.last;
-            if (!that.$$areEqual(newValue, oldValue, watcher.valueEq)) {
-                that.$$lastDirtyWatch = watcher;
-                watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
-                watcher.listenerFn(newValue,
-                    oldValue === initWatchVal ? newValue : oldValue,
-                    that);
-                dirty = true;
-            } else if (that.$$lastDirtyWatch === watcher) {
-                return false;
+            if (watcher) {
+                var newValue = watcher.watchFn(that);
+                var oldValue = watcher.last;
+                if (!that.$$areEqual(newValue, oldValue, watcher.valueEq)) {
+                    that.$$lastDirtyWatch = watcher;
+                    watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
+                    watcher.listenerFn(newValue,
+                        oldValue === initWatchVal ? newValue : oldValue,
+                        that);
+                    dirty = true;
+                } else if (that.$$lastDirtyWatch === watcher) {
+                    return false;
+                }
             }
         } catch (e) {
             console.log(e);
