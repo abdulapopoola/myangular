@@ -357,39 +357,114 @@ describe('Scope', function () {
                 function (scope) { },
                 function (newValue, oldValue, scope) {
                     scope.counter++;
-                 }
+                }
             );
 
             scope.$digest();
             expect(scope.counter).toBe(0);
         });
     });
-    
-    describe('$eval', function() {
+
+    describe('$eval', function () {
         var scope;
-        
+
         beforeEach(function () {
             scope = new Scope();
         });
-        
+
         it('evaluates $evaled function and returns result', function () {
             scope.aValue = 42;
-            
+
             var result = scope.$eval(function (scope) {
                 return scope.aValue;
             });
-            
+
             expect(result).toBe(42);
         });
-        
+
         it('passes the second $eval argument straight through', function () {
             scope.aValue = 42;
-            
+
             var result = scope.$eval(function (scope, arg) {
                 return scope.aValue + arg;
             }, 2);
-            
+
             expect(result).toBe(44);
+        });
+    });
+
+    describe('$apply', function () {
+        var scope;
+
+        beforeEach(function () {
+            scope = new Scope();
+        });
+
+        it('executes the given function and starts the digest', function () {
+            scope.aValue = 'someValue';
+            scope.counter = 0;
+
+            scope.$watch(function (scope, arg) {
+                return scope.aValue;
+            }, function (newValue, oldValue, scope) {
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.$apply(function (scope) {
+                scope.aValue = 'someOtherValue';
+            });
+            expect(scope.counter).toBe(2);
+            expect(scope.aValue).toBe('someOtherValue');
+        });
+    });
+
+    describe('$evalAsync', function () {
+        var scope;
+
+        beforeEach(function () {
+            scope = new Scope();
+        });
+
+        it('executes given function later in the same cycle', function () {
+            scope.aValue = [1, 2, 3];
+            scope.asyncEvaluated = false;
+            scope.asyncEvaluatedImmediately = false;
+
+            scope.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) {
+                    scope.$evalAsync(function (scope) {
+                        scope.asyncEvaluated = true;
+                    });
+                    scope.asyncEvaluatedImmediately = scope.asyncEvaluated;
+                }
+            );
+
+            scope.$digest();
+            expect(scope.asyncEvaluated).toBe(true);
+            expect(scope.asyncEvaluatedImmediately).toBe(false);
+        });
+
+        if ('executes $evalAsynced functions added by watch functions', function () {
+            scope.aValue = [1, 2, 3];
+            scope.asyncEvaluated = false;
+
+            scope.$watch(
+                function (scope) {
+                    if (!scope.asyncEvaluated) {
+                        scope.$evalAsync(function (scope) {
+                            scope.asyncEvaluated = true;
+                        });
+                    }
+                },
+                function (newValue, oldValue, scope) { }
+            );
+            
+            scope.$digest();
+            expect(scope.asyncEvaluated).toBe(true);
         });
     });
 });
