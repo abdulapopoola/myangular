@@ -547,6 +547,26 @@ describe('Scope', function () {
                 done();
             }, 50);
         });
+
+        it('catches exceptions in $evalAsync', function (done) {
+            scope.aValue = 'abc';
+            scope.counter = 0;
+
+            scope.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+
+            scope.$evalAsync(function (scope) {
+                throw 'Error';
+            });
+            setTimeout(function () {
+                expect(scope.counter).toBe(1);
+                done();
+            }, 50);
+        });
     });
 
     describe('$applyAsync', function () {
@@ -653,6 +673,22 @@ describe('Scope', function () {
                 done();
             }, 50);
         });
+
+        it('catches exceptions in $applyAsync', function (done) {
+            scope.$applyAsync(function (scope) {
+                throw 'Error';
+            });
+            scope.$applyAsync(function (scope) {
+                throw 'Error';
+            });
+            scope.$applyAsync(function (scope) {
+                scope.applied = true;
+            });
+            setTimeout(function () {
+                expect(scope.applied).toBe(true);
+                done();
+            }, 50);
+        });
     });
 
     describe('$postDigest', function () {
@@ -693,9 +729,46 @@ describe('Scope', function () {
 
             scope.$digest();
             expect(scope.watchedValue).toBe('original value');
-            
+
             scope.$digest();
             expect(scope.watchedValue).toBe('changed value');
+        });
+        it('catches exceptions in $$postDigest', function () {
+            var didRun = false;
+            scope.$$postDigest(function () {
+                throw 'Error';
+            });
+            scope.$$postDigest(function () {
+                didRun = true;
+            });
+            scope.$digest();
+            expect(didRun).toBe(true);
+        });
+    });
+
+    describe('$watchGroup', function () {
+        var scope;
+        beforeEach(function () {
+            scope = new Scope();
+        });
+
+        it('takes watches as an array and calls listeners with arrays', function () {
+            var gotNewValues, gotOldValues;
+
+            scope.aValue = 1;
+            scope.anotherValue = 2;
+
+            scope.$watchGroup([
+                function (scope) { return scope.aValue; },
+                function (scope) { return scope.anotherValue; }
+            ], function (newValues, oldValues, scope) {
+                      gotNewValues = newValues;
+                gotOldValues = oldValues;
+            });
+            
+            scope.$digest();
+                expect(gotNewValues).toEqual([1, 2]);
+            expect(gotOldValues).toEqual([1, 2]);
         });
     });
 });
