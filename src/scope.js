@@ -14,6 +14,7 @@ function Scope() {
     this.$$applyAsyncQueue = [];
     this.$$applyAsyncId = null;
     this.$$postDigestQueue = [];
+    this.$$children = [];
     this.$$phase = null;
 }
 
@@ -37,26 +38,32 @@ Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
 Scope.prototype.$digestOnce = function () {
     var that = this;
     var dirty;
+    var continueLoop = true;
 
-    _.forEachRight(this.$$watchers, function (watcher) {
-        try {
-            if (watcher) {
-                var newValue = watcher.watchFn(that);
-                var oldValue = watcher.last;
-                if (!that.$$areEqual(newValue, oldValue, watcher.valueEq)) {
-                    that.$$lastDirtyWatch = watcher;
-                    watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
-                    watcher.listenerFn(newValue,
-                        oldValue === initWatchVal ? newValue : oldValue,
-                        that);
-                    dirty = true;
-                } else if (that.$$lastDirtyWatch === watcher) {
-                    return false;
+    this.$$everyScope(function (scope) {
+        var newValue, oldValue;
+        _.forEachRight(scope.$$watchers, function (watcher) {
+            try {
+                if (watcher) {
+                    newValue = watcher.watchFn(scope);
+                    oldValue = watcher.last;
+                    if (!scope.$$areEqual(newValue, oldValue, watcher.valueEq)) {
+                        that.$$lastDirtyWatch = watcher;
+                        watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
+                        watcher.listenerFn(newValue,
+                            oldValue === initWatchVal ? newValue : oldValue,
+                            scope);
+                        dirty = true;
+                    } else if (that.$$lastDirtyWatch === watcher) {
+                        continueLoop = false;
+                        return false;
+                    }
                 }
+            } catch (e) {
+                console.log(e);
             }
-        } catch (e) {
-            console.log(e);
-        }
+        });
+        return continueLoop;
     });
     return dirty;
 };
@@ -225,7 +232,20 @@ Scope.prototype.$new = function () {
     var ChildScope = function () { };
     ChildScope.prototype = this;
     var child = new ChildScope();
+    this.$$children.push(child);
+    child.$$watchers = [];
+    child.$$children = [];
     return child;
+};
+
+Scope.prototype.$$everyScope = function (fn) {
+    if (fn(this)) {
+        return this.$$children.every(function (child) {
+            return child.$$everyScope(fn);
+        });
+    } else {
+        return false;
+    }
 };
 
 module.exports = Scope;

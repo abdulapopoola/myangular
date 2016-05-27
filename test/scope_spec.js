@@ -976,11 +976,53 @@ describe('Scope', function () {
             var parent = new Scope();
             var child = parent.$new();
 
-            parent.user = {name: 'Joe'};
+            parent.user = { name: 'Joe' };
             child.user.name = 'Jill';
 
             expect(parent.user.name).toEqual('Jill');
             expect(child.user.name).toEqual('Jill');
+        });
+
+        it('does not digest its parent(s)', function () {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = 'abc';
+            parent.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) {
+                    scope.aValueWas = newValue;
+                }
+            );
+            child.$digest();
+            expect(child.aValueWas).toBeUndefined();
+        });
+
+        it('keeps a record of its children', function () {
+            var parent = new Scope();
+            var child1 = parent.$new();
+            var child2 = parent.$new();
+            var child21 = child2.$new();
+
+            expect(parent.$$children.length).toBe(2);
+            expect(parent.$$children[0]).toBe(child1);
+            expect(parent.$$children[1]).toBe(child2);
+            expect(child1.$$children.length).toBe(0);
+            expect(child2.$$children.length).toBe(1);
+            expect(child2.$$children[0]).toBe(child21);
+        });
+
+        it('digests its children', function () {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = 'abc';
+            child.$watch(
+                function (scope) { return scope.aValue; },
+                function (newValue, oldValue, scope) {
+                    scope.aValueWas = newValue;
+                }
+            );
+            parent.$digest();
+            expect(child.aValueWas).toBe('abc');
         });
     });
 });
