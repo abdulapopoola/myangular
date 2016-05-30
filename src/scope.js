@@ -109,7 +109,11 @@ Scope.prototype.$$areEqual = function (newValue, oldValue, valueEq) {
     if (valueEq) {
         return _.isEqual(newValue, oldValue);
     } else {
-        return newValue === oldValue;
+        return newValue === oldValue ||
+            (typeof newValue === 'number' &&
+                typeof oldValue === 'number' &&
+                isNaN(newValue) &&
+                isNaN(oldValue));
     }
 };
 
@@ -246,6 +250,7 @@ Scope.prototype.$new = function (isolated, parent) {
     parent.$$children.push(child);
     child.$$watchers = [];
     child.$$children = [];
+    child.$parent = parent;
     return child;
 };
 
@@ -257,6 +262,46 @@ Scope.prototype.$$everyScope = function (fn) {
     } else {
         return false;
     }
+};
+
+Scope.prototype.$destroy = function () {
+    var siblings = this.$parent && this.$parent.$$children;
+    _.remove(siblings, this);
+    this.$$watchers = null;
+};
+
+Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
+    var that = this;
+    var newValue;
+    var oldValue;
+    var changeCount = 0;
+
+    var internalWatchFn = function (scope) {
+        newValue = watchFn(scope);
+
+        if (_.isObject(newValue)) {
+            if (_.isArray(newValue)) {
+                if (!_.isArray(oldValue)) {
+                    changeCount++;
+                    oldValue = [];
+                }
+            } else {
+            }
+        } else {
+            if (!that.$$areEqual(newValue, oldValue, false)) {
+                changeCount++;
+            }
+
+            oldValue = newValue;
+        }
+        return changeCount;
+    };
+
+    var internalListenerFn = function (scope) {
+        listenerFn(newValue, oldValue, that);
+    };
+
+    return this.$watch(internalWatchFn, internalListenerFn);
 };
 
 module.exports = Scope;
