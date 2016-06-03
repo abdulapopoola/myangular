@@ -274,9 +274,11 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
     var that = this;
     var newValue;
     var oldValue;
+    var oldLength;
     var changeCount = 0;
 
     var internalWatchFn = function (scope) {
+        var newLength;
         newValue = watchFn(scope);
 
         if (_.isObject(newValue)) {
@@ -300,6 +302,31 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
                 if (!_.isObject(oldValue) || isArrayLike(oldValue)) {
                     changeCount++;
                     oldValue = {};
+                    oldLength = 0;
+                }
+                newLength = 0;
+                _.forOwn(newValue, function (newVal, key) {
+                    newLength++;
+                    if (oldValue.hasOwnProperty(key)) {
+                        var bothNaN = _.isNaN(newVal) && _.isNaN(oldValue[key]);
+                        if (!bothNaN && oldValue[key] !== newVal) {
+                            changeCount++;
+                            oldValue[key] = newVal;
+                        }
+                    } else {
+                        changeCount++;
+                        oldLength++;
+                        oldValue[key] = newVal;
+                    }
+                });
+                if (oldLength > newLength) {
+                    _.forOwn(oldValue, function (oldVal, key) {
+                        if (!newValue.hasOwnProperty(key)) {
+                            changeCount++;
+                            oldLength--;
+                            delete oldValue[key];
+                        }
+                    });
                 }
             }
         } else {
@@ -324,7 +351,9 @@ function isArrayLike(obj) {
         return false;
     }
     var length = obj.length;
-    return _.isNumber(length);
+
+    return length === 0 ||
+        (_.isNumber(length) && length > 0 && (length - 1) in obj);
 }
 
 module.exports = Scope;

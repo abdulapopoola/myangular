@@ -6,5 +6,6 @@
     "disallowTrailingWhitespace": null,
     "disallowSpacesInAnonymousFunctionExpression": null,
     "disallowSpacesInFunctionExpression": null,
-    "disallowMultipleVarDecl": null
+    "disallowMultipleVarDecl": null,
+    "disallowSpacesInsideObjectBrackets": null
 }
