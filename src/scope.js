@@ -350,6 +350,9 @@ function isArrayLike(obj) {
     if (_.isNull(obj) || _.isUndefined(obj)) {
         return false;
     }
+    
+    //better approach - phantomJS blows up though
+    //return obj[Symbol.iterator] === [][Symbol.iterator];
     var length = obj.length;
 
     return length === 0 ||
