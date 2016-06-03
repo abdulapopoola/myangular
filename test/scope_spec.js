@@ -1329,5 +1329,61 @@ describe('Scope', function () {
             scope.$digest();
             expect(scope.counter).toBe(1);
         });
+
+        it('notices an item replaced in an arguments object', function () {
+            (function () {
+                scope.arrayLike = arguments;
+            })(1, 2, 3);
+            scope.counter = 0;
+            scope.$watchCollection(
+                function (scope) { return scope.arrayLike; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            scope.arrayLike[1] = 42;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it('notices an item replaced in a NodeList object', function () {
+            document.documentElement.appendChild(document.createElement('div'));
+            scope.arrayLike = document.getElementsByTagName('div');
+            scope.counter = 0;
+            scope.$watchCollection(
+                function (scope) { return scope.arrayLike; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            document.documentElement.appendChild(document.createElement('div'));
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it('notices when the value becomes an object', function () {
+            scope.counter = 0;
+            scope.$watchCollection(
+                function (scope) { return scope.obj; },
+                function (newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            scope.obj = {a: 1};
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
     });
 });

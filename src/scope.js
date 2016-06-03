@@ -280,7 +280,7 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
         newValue = watchFn(scope);
 
         if (_.isObject(newValue)) {
-            if (_.isArray(newValue)) {
+            if (isArrayLike(newValue)) {
                 if (!_.isArray(oldValue)) {
                     changeCount++;
                     oldValue = [];
@@ -297,6 +297,10 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
                     }
                 });
             } else {
+                if (!_.isObject(oldValue) || isArrayLike(oldValue)) {
+                    changeCount++;
+                    oldValue = {};
+                }
             }
         } else {
             if (!that.$$areEqual(newValue, oldValue, false)) {
@@ -314,5 +318,13 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
 
     return this.$watch(internalWatchFn, internalListenerFn);
 };
+
+function isArrayLike(obj) {
+    if (_.isNull(obj) || _.isUndefined(obj)) {
+        return false;
+    }
+    var length = obj.length;
+    return _.isNumber(length);
+}
 
 module.exports = Scope;
