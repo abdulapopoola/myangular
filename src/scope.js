@@ -49,13 +49,13 @@ Scope.prototype.$digestOnce = function () {
                     newValue = watcher.watchFn(scope);
                     oldValue = watcher.last;
                     if (!scope.$$areEqual(newValue, oldValue, watcher.valueEq)) {
-                        that.$root.$$lastDirtyWatch = watcher;
+                        scope.$root.$$lastDirtyWatch = watcher;
                         watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
                         watcher.listenerFn(newValue,
                             oldValue === initWatchVal ? newValue : oldValue,
                             scope);
                         dirty = true;
-                    } else if (that.$root.$$lastDirtyWatch === watcher) {
+                    } else if (scope.$root.$$lastDirtyWatch === watcher) {
                         continueLoop = false;
                         return false;
                     }
@@ -164,7 +164,7 @@ Scope.prototype.$applyAsync = function (expr) {
         that.$eval(expr);
     });
 
-    if (this.$root.$$applyAsyncId == null) {
+    if (this.$root.$$applyAsyncId === null) {
         this.$root.$$applyAsyncId = setTimeout(function () {
             that.$apply(_.bind(that.$$flushApplyAsync, that));
         }, 0);
@@ -193,11 +193,11 @@ Scope.prototype.$watchGroup = function (watchFns, listenerFn) {
     var changeReactionScheduled = false;
     var firstRun = true;
 
-    if (_.isEmpty(watchFns)) {
+    if (watchFns.length === 0) {
         var shouldCall = true;
         this.$evalAsync(function () {
             if (shouldCall) {
-                listenerFn(newValues, oldValues, that);
+                listenerFn(newValues, newValues, that);
             }
         });
         return function () {
@@ -208,7 +208,7 @@ Scope.prototype.$watchGroup = function (watchFns, listenerFn) {
     function watchGroupListener() {
         if (firstRun) {
             firstRun = false;
-            listenerFn(newValues, oldValues, that);
+            listenerFn(newValues, newValues, that);
         } else {
             listenerFn(newValues, oldValues, that);
         }
@@ -275,7 +275,10 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
     var newValue;
     var oldValue;
     var oldLength;
+    var veryOldValue;
+    var trackVeryOldValue = (listenerFn.length > 1);
     var changeCount = 0;
+    var firstRun = true;
 
     var internalWatchFn = function (scope) {
         var newLength;
@@ -320,6 +323,7 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
                     }
                 });
                 if (oldLength > newLength) {
+                    changeCount++;
                     _.forOwn(oldValue, function (oldVal, key) {
                         if (!newValue.hasOwnProperty(key)) {
                             changeCount++;
@@ -339,8 +343,16 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
         return changeCount;
     };
 
-    var internalListenerFn = function (scope) {
-        listenerFn(newValue, oldValue, that);
+    var internalListenerFn = function () {
+        if (firstRun) {
+            listenerFn(newValue, newValue, that);
+            firstRun = false;
+        } else {
+            listenerFn(newValue, veryOldValue, that);
+        }
+        if (trackVeryOldValue) {
+            veryOldValue = _.clone(newValue);
+        }
     };
 
     return this.$watch(internalWatchFn, internalListenerFn);
@@ -350,7 +362,7 @@ function isArrayLike(obj) {
     if (_.isNull(obj) || _.isUndefined(obj)) {
         return false;
     }
-    
+
     //better approach - phantomJS blows up though
     //return obj[Symbol.iterator] === [][Symbol.iterator];
     var length = obj.length;
