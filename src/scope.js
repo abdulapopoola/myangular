@@ -370,28 +370,54 @@ Scope.prototype.$on = function (eventName, listener) {
     return function () {
         var index = listeners.indexOf(listener);
         if (index >= 0) {
-            listeners.splice(index, 1);
+            listeners[index] = null;
         }
     };
 };
 
 Scope.prototype.$emit = function (eventName) {
-    var additionalArgs = _.tail(arguments);
-    return this.$$fireEventOnScope(eventName, additionalArgs);
+    var propagationStopped = false;
+    var event = {
+        name: eventName,
+        targetScope: this,
+        stopPropagation: function () {
+            propagationStopped = true;
+        }
+    };
+    var listenerArgs = [event].concat(_.tail(arguments));
+    var scope = this;
+    do {
+        event.currentScope = scope;
+        scope.$$fireEventOnScope(eventName, listenerArgs);
+        scope = scope.$parent;
+    } while (scope && !propagationStopped);
+    event.currentScope = null;
+    return event;
 };
 
 Scope.prototype.$broadcast = function (eventName) {
-    var additionalArgs = _.tail(arguments);
-    return this.$$fireEventOnScope(eventName, additionalArgs);
+    var event = { name: eventName, targetScope: this };
+    var listenerArgs = [event].concat(_.tail(arguments));
+    this.$$everyScope(function (scope) {
+        event.currentScope = scope;
+        scope.$$fireEventOnScope(eventName, listenerArgs);
+        return true;
+    });
+    event.currentScope = null;
+    return event;
 };
 
-Scope.prototype.$$fireEventOnScope = function (eventName, additionalArgs) {
-    var event = { name: eventName };
-    var listenerArgs = [event].concat(additionalArgs);
+Scope.prototype.$$fireEventOnScope = function (eventName, listenerArgs) {
     var listeners = this.$$listeners[eventName] || [];
-    _.forEach(listeners, function (listener) {
-        listener.apply(null, listenerArgs);
-    });
+    var i = 0;
+    while (i < listeners.length) {
+        if (listeners[i] === null) {
+            listeners.splice(i, 1);
+        } else {
+            listeners[i].apply(null, listenerArgs);
+            i++;
+        }
+    }
     return event;
 };
 
