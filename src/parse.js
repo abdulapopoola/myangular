@@ -18,7 +18,8 @@ Lexer.prototype.lex = function (text) {
     var textLen = this.text.length;
     while (this.index < textLen) {
         this.ch = this.text.charAt(this.index);
-        if (this.isNumber(this.ch)) {
+        if (this.isNumber(this.ch) ||
+            (this.ch === '.' && this.isNumber(this.peek()))) {
             this.readNumber();
         } else {
             throw 'Unexpected next character: ' + this.ch;
@@ -36,7 +37,7 @@ Lexer.prototype.readNumber = function () {
     var number = '';
     while (this.index < this.text.length) {
         var ch = this.text.charAt(this.index);
-        if (this.isNumber(ch)) {
+        if (ch === '.' || this.isNumber(ch)) {
             number += ch;
         } else {
             break;
@@ -48,6 +49,12 @@ Lexer.prototype.readNumber = function () {
         value: Number(number)
     });
 };
+
+Lexer.prototype.peek = function () {
+    return this.index < this.text.length - 1 ?
+        this.text.charAt(this.index + 1) :
+        false;
+}
 
 function AST(lexer) {
     this.lexer = lexer;
@@ -75,7 +82,21 @@ function ASTCompiler(astBuilder) {
 
 ASTCompiler.prototype.compile = function (text) {
     var ast = this.astBuilder.ast(text);
-    // AST compilation will be done here
+    this.state = { body: [] };
+    this.recurse(ast);
+    /* jshint -W054 */
+    return new Function(this.state.body.join(''));
+    /* jshint +W054 */
+};
+
+ASTCompiler.prototype.recurse = function (ast) {
+    switch (ast.type) {
+        case AST.Program:
+            this.state.body.push('return ', this.recurse(ast.body), ';');
+            break;
+        case AST.Literal:
+            return ast.value;
+    }
 };
 
 function Parser(lexer) {
