@@ -27,7 +27,7 @@ Lexer.prototype.lex = function (text) {
             this.readNumber();
         } else if (this.ch === '\'' || this.ch === '"') {
             this.readString(this.ch);
-        } else if (this.is('[],{}:')) {
+        } else if (this.is('[],{}:.')) {
             this.tokens.push({
                 text: this.ch
             });
@@ -171,6 +171,8 @@ AST.ArrayExpression = 'ArrayExpression';
 AST.ObjectExpression = 'ObjectExpression';
 AST.Property = 'Property';
 AST.Identifier = 'Identifier';
+AST.ThisExpression = 'ThisExpression';
+AST.MemberExpression = 'MemberExpression';
 
 AST.prototype.ast = function (text) {
     this.tokens = this.lexer.lex(text);
@@ -182,15 +184,28 @@ AST.prototype.program = function () {
 };
 
 AST.prototype.primary = function () {
+    var primary;
     if (this.expect('[')) {
-        return this.arrayDeclaration();
+        primary = this.arrayDeclaration();
     } else if (this.expect('{')) {
-        return this.object();
+        primary = this.object();
     } else if (this.constants.hasOwnProperty(this.tokens[0].text)) {
-        return this.constants[this.consume().text];
+        primary = this.constants[this.consume().text];
+    } else if (this.peek().identifier) {
+        primary = this.identifier();
     } else {
-        return this.constant();
+        primary = this.constant();
     }
+
+    while (this.expect('.')) {
+        primary = {
+            type: AST.MemberExpression,
+            object: primary,
+            property: this.identifier()
+        };
+    }
+
+    return primary;
 };
 
 AST.prototype.arrayDeclaration = function () {
@@ -262,6 +277,7 @@ AST.prototype.constants = {
     'null': { type: AST.Literal, value: null },
     'true': { type: AST.Literal, value: true },
     'false': { type: AST.Literal, value: false },
+    'this': { type: AST.ThisExpression }
 };
 
 function ASTCompiler(astBuilder) {
@@ -272,14 +288,19 @@ ASTCompiler.prototype.stringEscapeRegex = /[^ a-zA-Z0-9]/g;
 
 ASTCompiler.prototype.compile = function (text) {
     var ast = this.astBuilder.ast(text);
-    this.state = { body: [] };
+    this.state = { body: [], nextId: 0, vars: [] };
     this.recurse(ast);
     /* jshint -W054 */
-    return new Function(this.state.body.join(''));
+    return new Function('s',
+        (this.state.vars.length ?
+            'var ' + this.state.vars.join(',') + ';' :
+            ''
+        ) + this.state.body.join(''));
     /* jshint +W054 */
 };
 
 ASTCompiler.prototype.recurse = function (ast) {
+    var intoId;
     switch (ast.type) {
         case AST.Program:
             this.state.body.push('return ', this.recurse(ast.body), ';');
@@ -300,6 +321,18 @@ ASTCompiler.prototype.recurse = function (ast) {
                 return key + ':' + value;
             }, this));
             return '{' + properties.join(',') + '}';
+        case AST.Identifier:
+            var intoId = this.nextId();
+            this.if_('s', this.assign(intoId, this.nonComputedMember('s', ast.name)));
+            return intoId;
+        case AST.ThisExpression:
+            return 's';
+        case AST.MemberExpression:
+            intoId = this.nextId();
+            var left = this.recurse(ast.object);
+            this.if_(left,
+                this.assign(intoId, this.nonComputedMember(left, ast.property.name)));
+            return intoId;
     }
 };
 
@@ -317,6 +350,24 @@ ASTCompiler.prototype.escape = function (value) {
 
 ASTCompiler.prototype.stringEscapeFn = function (c) {
     return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+};
+
+ASTCompiler.prototype.nonComputedMember = function (left, right) {
+    return '(' + left + ').' + right;
+};
+
+ASTCompiler.prototype.if_ = function (test, consequent) {
+    this.state.body.push('if(', test, '){', consequent, '}');
+};
+
+ASTCompiler.prototype.assign = function (id, value) {
+    return id + '=' + value + ';';
+};
+
+ASTCompiler.prototype.nextId = function () {
+    var id = 'v' + (this.state.nextId++);
+    this.state.vars.push(id);
+    return id;
 };
 
 function Parser(lexer) {
