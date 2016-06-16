@@ -1,5 +1,6 @@
 'use strict';
 
+var _ = require('lodash');
 var parse = require('../src/parse');
 
 describe('parse', function () {
@@ -209,5 +210,84 @@ describe('parse', function () {
     it('parses computed access with another access as property', function () {
         var fn = parse('lock[keys["aKey"]]');
         expect(fn({ keys: { aKey: 'theKey' }, lock: { theKey: 42 } })).toBe(42);
+    });
+
+    it('parses a function call', function () {
+        var fn = parse('aFunction()');
+        expect(fn({ aFunction: function () { return 42; } })).toBe(42);
+    });
+
+    it('parses a function call with a single number argument', function () {
+        var fn = parse('aFunction(42)');
+        expect(fn({ aFunction: function (n) { return n; } })).toBe(42);
+    });
+
+    it('parses a function call with a single identifier argument', function () {
+        var fn = parse('aFunction(n)');
+        expect(fn({ n: 42, aFunction: function (arg) { return arg; } })).toBe(42);
+    });
+
+    it('parses a function call with a single function call argument', function () {
+        var fn = parse('aFunction(argFn())');
+        expect(fn({
+            argFn: _.constant(42),
+            aFunction: function (arg) { return arg; }
+        })).toBe(42);
+    });
+
+    it('parses a function call with multiple arguments', function () {
+        var fn = parse('aFunction(37, n, argFn())');
+        expect(fn({
+            n: 3,
+            argFn: _.constant(2),
+            aFunction: function (a1, a2, a3) { return a1 + a2 + a3; }
+        })).toBe(42);
+    });
+
+    it('calls methods accessed as computed properties', function () {
+        var scope = {
+            anObject: {
+                aMember: 42,
+                aFunction: function () {
+                    return this.aMember;
+                }
+            }
+        };
+        var fn = parse('anObject["aFunction"]()');
+        expect(fn(scope)).toBe(42);
+    });
+
+    it('calls methods accessed as non-computed properties', function () {
+        var scope = {
+            anObject: {
+                aMember: 42,
+                aFunction: function () {
+                    return this.aMember;
+                }
+            }
+        };
+        var fn = parse('anObject.aFunction()');
+        expect(fn(scope)).toBe(42);
+    });
+
+    it('binds bare functions to the scope', function () {
+        var scope = {
+            aFunction: function () {
+                return this;
+            }
+        };
+        var fn = parse('aFunction()');
+        expect(fn(scope)).toBe(scope);
+    });
+
+    it('binds bare functions on locals to the locals', function () {
+        var scope = {};
+        var locals = {
+            aFunction: function () {
+                return this;
+            }
+        };
+        var fn = parse('aFunction()');
+        expect(fn(scope, locals)).toBe(locals);
     });
 });
