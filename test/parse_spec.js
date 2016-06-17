@@ -290,4 +290,88 @@ describe('parse', function () {
         var fn = parse('aFunction()');
         expect(fn(scope, locals)).toBe(locals);
     });
+
+    it('parses a simple attribute assignment', function () {
+        var fn = parse('anAttribute = 42');
+        var scope = {};
+        fn(scope);
+        expect(scope.anAttribute).toBe(42);
+    });
+
+    it('can assign any primary expression', function () {
+        var fn = parse('anAttribute = aFunction()');
+        var scope = { aFunction: _.constant(42) };
+        fn(scope);
+        expect(scope.anAttribute).toBe(42);
+    });
+
+    it('can assign a computed object property', function () {
+        var fn = parse('anObject["anAttribute"] = 42');
+        var scope = { anObject: {} };
+        fn(scope);
+        expect(scope.anObject.anAttribute).toBe(42);
+    });
+
+    it('can assign a non-computed object property', function () {
+        var fn = parse('anObject.anAttribute = 42');
+        var scope = { anObject: {} };
+        fn(scope);
+        expect(scope.anObject.anAttribute).toBe(42);
+    });
+
+    it('can assign a nested object property', function () {
+        var fn = parse('anArray[0].anAttribute = 42');
+        var scope = { anArray: [{}] };
+        fn(scope);
+        expect(scope.anArray[0].anAttribute).toBe(42);
+    });
+
+    it('creates the objects in the assignment path that do not exist', function () {
+        var fn = parse('some["nested"].property.path = 42');
+        var scope = {};
+        fn(scope);
+        expect(scope.some.nested.property.path).toBe(42);
+    });
+
+    it('does not allow calling the function constructor', function () {
+        expect(function () {
+            var fn = parse('aFunction.constructor("return window;")()');
+            fn({ aFunction: function () { } });
+        }).toThrow();
+    });
+
+    it('does not allow accessing __proto__', function () {
+        expect(function () {
+            var fn = parse('obj.__proto__');
+            fn({ obj: {} });
+        }).toThrow();
+    });
+
+    it('does not allow calling __defineGetter__', function () {
+        expect(function () {
+            var fn = parse('obj.__defineGetter__("evil", fn)');
+            fn({ obj: {}, fn: function () { } });
+        }).toThrow();
+    });
+
+    it('does not allow calling __defineSetter__', function () {
+        expect(function () {
+            var fn = parse('obj.__defineSetter__("evil", fn)');
+            fn({ obj: {}, fn: function () { } });
+        });
+    });
+
+    it('does not allow calling __lookupGetter__', function () {
+        expect(function () {
+            var fn = parse('obj.__lookupGetter__("evil")');
+            fn({ obj: {} });
+        }).toThrow();
+    });
+
+    it('does not allow calling __lookupSetter__', function () {
+        expect(function () {
+            var fn = parse('obj.__lookupSetter__("evil")');
+            fn({ obj: {} });
+        }).toThrow();
+    });
 });
