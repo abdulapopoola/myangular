@@ -409,7 +409,7 @@ ASTCompiler.prototype.recurse = function (ast, context, create) {
                     context.computed = true;
                 }
             } else {
-                ensureSafeMemberName(ast.name);
+                ensureSafeMemberName(ast.property.name);
                 if (create) {
                     this.if_(this.not(this.nonComputedMember(left, ast.property.name)),
                         this.assign(this.nonComputedMember(left, ast.property.name), '{}'));

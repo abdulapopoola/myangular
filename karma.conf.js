@@ -12,6 +12,7 @@ module.exports = function (config) {
         browsers: ['PhantomJS'],
         browserify: {
             debug: true
-        }
-    })
-} 
+        },
+        //logLevel: config.LOG_DEBUG
+    });
+};
