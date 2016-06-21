@@ -1,7 +1,6 @@
 'use strict';
 
 var register = require('../src/filter').register;
-var parse = require('../src/parse');
 var filter = require('../src/filter').filter;
 
 describe('filter', function () {
@@ -27,15 +26,5 @@ describe('filter', function () {
         });
         expect(filter('my')).toBe(myFilter);
         expect(filter('myOther')).toBe(myOtherFilter);
-    });
-
-    it('can parse filter expressions', function () {
-        register('upcase', function () {
-            return function (str) {
-                return str.toUpperCase();
-            };
-        });
-        var fn = parse('aString | upcase');
-        expect(fn({ aString: 'Hello' })).toEqual('HELLO');
     });
 });
