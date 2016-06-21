@@ -2,6 +2,7 @@
 
 var _ = require('lodash');
 var parse = require('../src/parse');
+var register = require('../src/filter').register;
 
 describe('parse', function () {
     it('can parse an integer', function () {
