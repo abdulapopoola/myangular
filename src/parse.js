@@ -473,13 +473,17 @@ AST.prototype.peek = function (e1, e2, e3, e4) {
 
 AST.prototype.filter = function () {
     var left = this.assignment();
-    if (this.expect('|')) {
+    while (this.expect('|')) {
+        var args = [left];
         left = {
             type: AST.CallExpression,
             callee: this.identifier(),
-            arguments: [left],
-            filter: true
+            arguments: args,
+            filter: true,
         };
+        while (this.expect(':')) {
+            args.push(this.assignment());
+        }
     }
     return left;
 };
