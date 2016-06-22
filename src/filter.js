@@ -20,6 +20,8 @@ function filter(name) {
     return filters[name];
 }
 
+register('filter', require('./filter_filter'));
+
 module.exports = {
     register: register,
     filter: filter
