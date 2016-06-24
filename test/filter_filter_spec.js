@@ -274,4 +274,44 @@ describe('filter filter', function () {
             { name: { first: 'Mary', last: 'Brown' }, role: 'admin' }
         ]);
     });
+
+    it('filters primitives with a wildcard property', function () {
+        var fn = parse('arr | filter:{$: "o"}');
+        expect(fn({ arr: ['Joe', 'Jane', 'Mary'] })).toEqual(['Joe']);
+    });
+
+    it('filters with a nested wildcard property', function () {
+        var fn = parse('arr | filter:{$: {$: "o"}}');
+        expect(fn({
+            arr: [
+                { name: { first: 'Joe' }, role: 'admin' },
+                { name: { first: 'Jane' }, role: 'moderator' },
+                { name: { first: 'Mary' }, role: 'admin' }
+            ]
+        })).toEqual([
+            { name: { first: 'Joe' }, role: 'admin' }
+        ]);
+    });
+
+    it('allows using a custom comparator', function () {
+        var fn = parse('arr | filter:{$: "o"}:myComparator');
+        expect(fn({
+            arr: ['o', 'oo', 'ao', 'aa'],
+            myComparator: function (left, right) {
+                return left === right;
+            }
+        })).toEqual(['o']);
+    });
+
+    it('allows using an equality comparator', function () {
+        var fn = parse('arr | filter:{name: "Jo"}:true');
+        expect(fn({
+            arr: [
+                { name: 'Jo' },
+                { name: 'Joe' }
+            ]
+        })).toEqual([
+            { name: 'Jo' }
+        ]);
+    });
 });
