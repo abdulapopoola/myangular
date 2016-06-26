@@ -192,6 +192,18 @@ describe('parse', function () {
         var locals = { aKey: {} };
         expect(fn(scope, locals)).toBeUndefined();
     });
+    
+    it('will parse $locals', function () {
+        var fn = parse('$locals');
+        var scope = {};
+        var locals = {};
+        expect(fn(scope, locals)).toBe(locals);
+        expect(fn(scope)).toBeUndefined();
+        fn = parse('$locals.aKey');
+        scope = { aKey: 42 };
+        locals = { aKey: 43 };
+        expect(fn(scope, locals)).toBe(43);
+    });
 
     it('parses a simple computed property access', function () {
         var fn = parse('aKey["anotherKey"]');
