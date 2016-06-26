@@ -22,8 +22,14 @@ function Scope() {
 }
 
 Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
+    watchFn = parse(watchFn);
+
+    if (watchFn.$$watchDelegate) {
+        return watchFn.$$watchDelegate(this, listenerFn, valueEq, watchFn);
+    }
+
     var watcher = {
-        watchFn: parse(watchFn),
+        watchFn: watchFn,
         listenerFn: listenerFn || function () { },
         valueEq: !!valueEq,
         last: initWatchVal
@@ -427,7 +433,7 @@ Scope.prototype.$$fireEventOnScope = function (eventName, listenerArgs) {
             listeners.splice(i, 1);
         } else {
             try {
-            listeners[i].apply(null, listenerArgs);
+                listeners[i].apply(null, listenerArgs);
             } catch (e) {
                 console.error(e);
             }

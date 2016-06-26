@@ -33,12 +33,89 @@ function parse(expr) {
         case 'string':
             var lexer = new Lexer();
             var parser = new Parser(lexer);
-            return parser.parse(expr);
+            var oneTime = false;
+            if (expr.charAt(0) === ':' && expr.charAt(1) === ':') {
+                oneTime = true;
+                expr = expr.substring(2);
+            }
+            var parseFn = parser.parse(expr);
+            if (parseFn.constant) {
+                parseFn.$$watchDelegate = constantWatchDelegate;
+            } else if (oneTime) {
+                parseFn.$$watchDelegate = parseFn.literal ? oneTimeLiteralWatchDelegate :
+                    oneTimeWatchDelegate;
+            }
+            return parseFn;
         case 'function':
             return expr;
         default:
             return _.noop;
     }
+}
+
+function constantWatchDelegate(scope, listenerFn, valueEq, watchFn) {
+    var unwatch = scope.$watch(
+        function () {
+            return watchFn(scope);
+        },
+        function (newValue, oldValue, scope) {
+            if (_.isFunction(listenerFn)) {
+                listenerFn.apply(this, arguments);
+            }
+            unwatch();
+        },
+        valueEq
+    );
+
+    return unwatch;
+}
+
+function oneTimeWatchDelegate(scope, listenerFn, valueEq, watchFn) {
+    var lastValue;
+    var unwatch = scope.$watch(
+        function () {
+            return watchFn(scope);
+        },
+        function (newValue, oldValue, scope) {
+            lastValue = newValue;
+            if (_.isFunction(listenerFn)) {
+                listenerFn.apply(this, arguments);
+            }
+            if (!_.isUndefined(newValue)) {
+                scope.$$postDigest(function () {
+                    if (!_.isUndefined(lastValue)) {
+                        unwatch();
+                    }
+                });
+            }
+        },
+        valueEq
+    );
+
+    return unwatch;
+}
+
+function oneTimeLiteralWatchDelegate(scope, listenerFn, valueEq, watchFn) {
+    function isAllDefined(val) {
+        return !_.any(val, _.isUndefined);
+    }
+    var unwatch = scope.$watch(
+        function () {
+            return watchFn(scope);
+        }, function (newValue, oldValue, scope) {
+            if (_.isFunction(listenerFn)) {
+                listenerFn.apply(this, arguments);
+            }
+            if (isAllDefined(newValue)) {
+                scope.$$postDigest(function () {
+                    if (isAllDefined(newValue)) {
+                        unwatch();
+                    }
+                });
+            }
+        }, valueEq
+    );
+    return unwatch;
 }
 
 function Lexer() {
@@ -666,6 +743,7 @@ ASTCompiler.prototype.recurse = function (ast, context, create) {
                 this.addEnsureSafeFunction(callee);
                 return callee + '&&ensureSafeObject(' + callee + '(' + args.join(',') + '))';
             }
+            break;
         case AST.AssignmentExpression:
             var leftContext = {};
             this.recurse(ast.left, leftContext, true);
@@ -690,6 +768,7 @@ ASTCompiler.prototype.recurse = function (ast, context, create) {
                     ast.operator +
                     '(' + this.recurse(ast.right) + ')';
             }
+            break;
         case AST.LogicalExpression:
             intoId = this.nextId();
             this.state.body.push(this.assign(intoId, this.recurse(ast.left)));
