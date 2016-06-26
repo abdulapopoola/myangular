@@ -97,7 +97,7 @@ function oneTimeWatchDelegate(scope, listenerFn, valueEq, watchFn) {
 
 function oneTimeLiteralWatchDelegate(scope, listenerFn, valueEq, watchFn) {
     function isAllDefined(val) {
-        return !_.any(val, _.isUndefined);
+        return !_.some(val, _.isUndefined);
     }
     var unwatch = scope.$watch(
         function () {
