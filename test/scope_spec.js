@@ -2,6 +2,7 @@
 
 var Scope = require('../src/scope');
 var _ = require('lodash');
+var register = require('../src/filter').register;
 
 describe('Scope', function () {
     it('can be constructed and used as an object', function () {
