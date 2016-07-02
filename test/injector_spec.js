@@ -198,8 +198,111 @@ describe('injector', function () {
             var injector = createInjector([]);
 
             var fn = function (a, _b_, c_, _d, an_argument) { };
-            
+
             expect(injector.annotate(fn)).toEqual(['a', 'b', 'c_', '_d', 'an_argument']);
+        });
+
+        it('throws when using a non-annotated fn in strict mode', function () {
+            var injector = createInjector([], true);
+
+            var fn = function (a, b, c) { };
+
+            expect(function () {
+                injector.annotate(fn);
+            }).toThrow();
+        });
+
+        it('invokes an array-annotated function with dependency injection', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            var fn = ['a', 'b', function (one, two) { return one + two; }];
+
+            expect(injector.invoke(fn)).toBe(3);
+        });
+
+        it('invokes a non-annotated function with dependency injection', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            var fn = function (a, b) { return a + b; };
+
+            expect(injector.invoke(fn)).toBe(3);
+        });
+
+        it('instantiates an annotated constructor function', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            function Type(one, two) {
+                this.result = one + two;
+            }
+            Type.$inject = ['a', 'b'];
+
+            var instance = injector.instantiate(Type);
+            expect(instance.result).toBe(3);
+        });
+
+        it('instantiates an array-annotated constructor function', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            function Type(one, two) {
+                this.result = one + two;
+            }
+
+            var instance = injector.instantiate(['a', 'b', Type]);
+            expect(instance.result).toBe(3);
+        });
+
+        it('instantiates a non-annotated constructor function', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            function Type(a, b) {
+                this.result = a + b;
+            }
+
+            var instance = injector.instantiate(Type);
+            expect(instance.result).toBe(3);
+        });
+
+        it('uses the prototype of the constructor when instantiating', function () {
+            function BaseType() { }
+            BaseType.prototype.getValue = _.constant(42);
+
+            function Type() { this.v = this.getValue(); }
+            Type.prototype = BaseType.prototype;
+
+            var module = window.angular.module('myModule', []);
+            var injector = createInjector(['myModule']);
+
+            var instance = injector.instantiate(Type);
+            expect(instance.v).toBe(42);
+        });
+
+        it('supports locals when instantiating', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 1);
+            module.constant('b', 2);
+            var injector = createInjector(['myModule']);
+
+            function Type(a, b) {
+                this.result = a + b;
+            }
+            
+            var instance = injector.instantiate(Type, { b: 3 });
+            expect(instance.result).toBe(4);
         });
     });
 });
