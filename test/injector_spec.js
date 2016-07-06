@@ -504,9 +504,23 @@ describe('injector', function () {
                 this.$get = function () { return b; };
             });
             module.constant('b', 42);
-            
+
             var injector = createInjector(['myModule']);
             expect(injector.get('a')).toBe(42);
+        });
+
+        it('allows injecting the instance injector to $get', function () {
+            var module = window.angular.module('myModule', []);
+            module.constant('a', 42);
+            module.provider('b', function BProvider() {
+                this.$get = function ($injector) {
+                    return $injector.get('a');
+                };
+            });
+
+            var injector = createInjector(['myModule']);
+            
+            expect(injector.get('b')).toBe(42);
         });
     });
 });
