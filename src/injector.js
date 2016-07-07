@@ -46,14 +46,23 @@ function createInjector(modulesToLoad, strictDi) {
         });
     }
 
-    _.forEach(modulesToLoad, function loadModule(moduleName) {
-        if (!loadedModules.hasOwnProperty(moduleName)) {
-            loadedModules[moduleName] = true;
-            var module = window.angular.module(moduleName);
-            _.forEach(module.requires, loadModule);
-            runInvokeQueue(module._invokeQueue);
-            runInvokeQueue(module._configBlocks);
+    var runBlocks = [];
+    _.forEach(modulesToLoad, function loadModule(module) {
+        if (_.isString(module)) {
+            if (!loadedModules.hasOwnProperty(module)) {
+                loadedModules[module] = true;
+                module = window.angular.module(module);
+                _.forEach(module.requires, loadModule);
+                runInvokeQueue(module._invokeQueue);
+                runInvokeQueue(module._configBlocks);
+                runBlocks = runBlocks.concat(module._runBlocks);
+            }
+        } else if (_.isFunction(module) || _.isArray(module)) {
+            runBlocks.push(providerInjector.invoke(module));
         }
+    });
+    _.forEach(_.compact(runBlocks), function (runBlock) {
+        instanceInjector.invoke(runBlock);
     });
 
     function createInternalInjector(cache, factoryFn) {
