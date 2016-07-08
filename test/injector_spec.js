@@ -706,5 +706,138 @@ describe('injector', function () {
             createInjector(['myModule']);
             expect(loadedTimes).toBe(1);
         });
+
+        it('allows registering a factory', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('a', function () { return 42; });
+
+            var injector = createInjector(['myModule']);
+
+            expect(injector.get('a')).toBe(42);
+        });
+
+        it('injects a factory function with instances', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('a', function () { return 1; });
+            module.factory('b', function (a) { return a + 2; });
+
+            var injector = createInjector(['myModule']);
+
+            expect(injector.get('b')).toBe(3);
+        });
+
+        it('only calls a factory function once', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('a', function () { return {}; });
+
+            var injector = createInjector(['myModule']);
+
+            expect(injector.get('a')).toBe(injector.get('a'));
+        });
+
+        it('forces a factory to return a value', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('a', function () { });
+            module.factory('b', function () { return null; });
+            var injector = createInjector(['myModule']);
+
+            expect(function () {
+                injector.get('a');
+            }).toThrow();
+            expect(injector.get('b')).toBeNull();
+        });
+
+        it('allows registering a value', function () {
+            var module = window.angular.module('myModule', []);
+            module.value('a', 42);
+            var injector = createInjector(['myModule']);
+            expect(injector.get('a')).toBe(42);
+        });
+
+        it('does not make values available to config blocks', function () {
+            var module = window.angular.module('myModule', []);
+            module.value('a', 42);
+            module.config(function (a) {
+            });
+            expect(function () {
+                createInjector(['myModule']);
+            }).toThrow();
+        });
+
+        it('allows an undefined value', function () {
+            var module = window.angular.module('myModule', []);
+            module.value('a', undefined);
+            var injector = createInjector(['myModule']);
+            expect(injector.get('a')).toBeUndefined();
+        });
+
+        it('allows registering a service', function () {
+            var module = window.angular.module('myModule', []);
+            module.service('aService', function MyService() {
+                this.getValue = function () { return 42; };
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aService').getValue()).toBe(42);
+        });
+
+        it('injects service constructors with instances', function () {
+            var module = window.angular.module('myModule', []);
+            module.value('theValue', 42);
+            module.service('aService', function MyService(theValue) {
+                this.getValue = function () { return theValue; };
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aService').getValue()).toBe(42);
+        });
+
+        it('only instantiates services once', function () {
+            var module = window.angular.module('myModule', []);
+            module.service('aService', function MyService() {
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aService')).toBe(injector.get('aService'));
+        });
+
+        it('allows changing an instance using a decorator', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('aValue', function () {
+                return { aKey: 42 };
+            });
+            module.decorator('aValue', function ($delegate) {
+                $delegate.decoratedKey = 43;
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aValue').aKey).toBe(42);
+            expect(injector.get('aValue').decoratedKey).toBe(43);
+        });
+
+        it('allows multiple decorators per service', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('aValue', function () {
+                return {};
+            });
+            module.decorator('aValue', function ($delegate) {
+                $delegate.decoratedKey = 42;
+            });
+            module.decorator('aValue', function ($delegate) {
+                $delegate.otherDecoratedKey = 43;
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aValue').decoratedKey).toBe(42);
+            expect(injector.get('aValue').otherDecoratedKey).toBe(43);
+        });
+
+        it('uses dependency injection with decorators', function () {
+            var module = window.angular.module('myModule', []);
+            module.factory('aValue', function () {
+                return {};
+            });
+            module.constant('a', 42);
+            module.decorator('aValue', function (a, $delegate) {
+                $delegate.decoratedKey = a;
+            });
+            var injector = createInjector(['myModule']);
+            expect(injector.get('aValue').decoratedKey).toBe(42);
+        });
     });
 });
