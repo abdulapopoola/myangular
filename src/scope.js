@@ -6,6 +6,15 @@ var DIGEST_PHASE = '$digest';
 var APPLY_PHASE = '$apply';
 
 function $RootScopeProvider() {
+    var TTL = 10;
+
+    this.digestTtl = function (value) {
+        if (_.isNumber(value)) {
+            TTL = value;
+        }
+        return TTL;
+    };
+
     this.$get = ['$parse', function ($parse) {
         function initWatchVal() { }
 
@@ -79,7 +88,7 @@ function $RootScopeProvider() {
         };
 
         Scope.prototype.$digest = function () {
-            var ttl = 10;
+            var ttl = TTL;
             var dirty;
             this.$root.$$lastDirtyWatch = null;
             this.$beginPhase(DIGEST_PHASE);
