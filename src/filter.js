@@ -4,26 +4,25 @@ var _ = require('lodash');
 
 function $FilterProvider() {
     var filters = {};
-    
+
     this.register = function (name, factory) {
         if (_.isObject(name)) {
             return _.map(name, _.bind(function (factory, name) {
                 return this.register(name, factory);
             }, this));
         } else {
-            var filter = factory();
-            filters[name] = filter;
-            return filter;
+            return $provide.factory(name + 'Filter', factory);
         }
     };
 
-    this.$get = function () {
+    this.$get = ['$injector', function ($injector) {
         return function filter(name) {
-            return filters[name];
+            return $injector.get(name + 'Filter');
         };
-    };
+    }];
 
     this.register('filter', require('./filter_filter'));
 }
+$FilterProvider.$inject = ['$provide'];
 
 module.exports = $FilterProvider;
