@@ -1,13 +1,12 @@
 'use strict';
 
 var _ = require('lodash');
-var parse = require('./parse');
 
 var DIGEST_PHASE = '$digest';
 var APPLY_PHASE = '$apply';
 
 function $RootScopeProvider() {
-    this.$get = function () {
+    this.$get = ['$parse', function ($parse) {
         function initWatchVal() { }
 
         function Scope() {
@@ -24,7 +23,7 @@ function $RootScopeProvider() {
         }
 
         Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
-            watchFn = parse(watchFn);
+            watchFn = $parse(watchFn);
 
             if (watchFn.$$watchDelegate) {
                 return watchFn.$$watchDelegate(this, listenerFn, valueEq, watchFn);
@@ -128,7 +127,7 @@ function $RootScopeProvider() {
         };
 
         Scope.prototype.$eval = function (expr, locals) {
-            return parse(expr)(this, locals);
+            return $parse(expr)(this, locals);
         };
 
         Scope.prototype.$apply = function (fn) {
@@ -291,7 +290,7 @@ function $RootScopeProvider() {
             var changeCount = 0;
             var firstRun = true;
 
-            watchFn = parse(watchFn);
+            watchFn = $parse(watchFn);
 
             var internalWatchFn = function (scope) {
                 var newLength;
@@ -473,7 +472,7 @@ function $RootScopeProvider() {
 
         var $rootScope = new Scope();
         return $rootScope;
-    };
+    }];
 }
 
 module.exports = $RootScopeProvider;

@@ -18,7 +18,7 @@ function filterFilter() {
         }
         return _.filter(array, predicateFn);
     };
-};
+}
 
 function createPredicateFn(expression, comparator) {
     var shouldMatchPrimitives =

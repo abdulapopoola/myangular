@@ -2,7 +2,7 @@
 
 var _ = require('lodash');
 
-function $FilterProvider() {
+function $FilterProvider($provide) {
     var filters = {};
 
     this.register = function (name, factory) {
