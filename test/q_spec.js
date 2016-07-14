@@ -356,9 +356,215 @@ describe('$q', function () {
         });
         d.promise.catch(rejectedSpy);
         d.resolve(42);
-        
+
         $rootScope.$apply();
-        
+
         expect(rejectedSpy).not.toHaveBeenCalled();
+    });
+
+    it('waits on promise returned from handler', function () {
+        var d = $q.defer();
+        var fulfilledSpy = jasmine.createSpy();
+
+        d.promise.then(function (v) {
+            var d2 = $q.defer();
+            d2.resolve(v + 1);
+            return d2.promise;
+        }).then(function (v) {
+            return v * 2;
+        }).then(fulfilledSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+
+        expect(fulfilledSpy).toHaveBeenCalledWith(42);
+    });
+
+    it('waits on promise given to resolve', function () {
+        var d = $q.defer();
+        var d2 = $q.defer();
+        var fulfilledSpy = jasmine.createSpy();
+
+        d.promise.then(fulfilledSpy);
+        d2.resolve(42);
+        d.resolve(d2.promise);
+
+        $rootScope.$apply();
+
+        expect(fulfilledSpy).toHaveBeenCalledWith(42);
+    });
+
+    it('rejects when promise returned from handler rejects', function () {
+        var d = $q.defer();
+        var rejectedSpy = jasmine.createSpy();
+
+        d.promise.then(function () {
+            var d2 = $q.defer();
+            d2.reject('fail');
+            return d2.promise;
+        }).catch(rejectedSpy);
+        d.resolve('ok');
+
+        $rootScope.$apply();
+
+        expect(rejectedSpy).toHaveBeenCalledWith('fail');
+    });
+
+    it('allows chaining handlers on finally, with original value', function () {
+        var d = $q.defer();
+
+        var fulfilledSpy = jasmine.createSpy();
+        d.promise.then(function (result) {
+            return result + 1;
+        }).finally(function (result) {
+            return result * 2;
+        }).then(fulfilledSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+
+        expect(fulfilledSpy).toHaveBeenCalledWith(21);
+    });
+
+    it('allows chaining handlers on finally, with original rejection', function () {
+        var d = $q.defer();
+
+        var rejectedSpy = jasmine.createSpy();
+        d.promise.then(function (result) {
+            throw 'fail';
+        }).finally(function () {
+        }).catch(rejectedSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+
+        expect(rejectedSpy).toHaveBeenCalledWith('fail');
+    });
+
+    it('resolves to orig value when nested promise resolves', function () {
+        var d = $q.defer();
+
+        var fulfilledSpy = jasmine.createSpy();
+        var resolveNested;
+
+        d.promise.then(function (result) {
+            return result + 1;
+        }).finally(function (result) {
+            var d2 = $q.defer();
+            resolveNested = function () {
+                d2.resolve('abc');
+            };
+            return d2.promise;
+        }).then(fulfilledSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+        expect(fulfilledSpy).not.toHaveBeenCalled();
+
+        resolveNested();
+        $rootScope.$apply();
+        expect(fulfilledSpy).toHaveBeenCalledWith(21);
+    });
+
+    it('rejects to original value when nested promise resolves', function () {
+        var d = $q.defer();
+
+        var rejectedSpy = jasmine.createSpy();
+        var resolveNested;
+
+        d.promise.then(function (result) {
+            throw 'fail';
+        }).finally(function (result) {
+            var d2 = $q.defer();
+            resolveNested = function () {
+                d2.resolve('abc');
+            };
+            return d2.promise;
+        }).catch(rejectedSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+        expect(rejectedSpy).not.toHaveBeenCalled();
+
+        resolveNested();
+        $rootScope.$apply();
+        expect(rejectedSpy).toHaveBeenCalledWith('fail');
+    });
+
+    it('rejects when nested promise rejects in finally', function () {
+        var d = $q.defer();
+
+        var fulfilledSpy = jasmine.createSpy();
+        var rejectedSpy = jasmine.createSpy();
+        var rejectNested;
+
+        d.promise.then(function (result) {
+            return result + 1;
+        }).finally(function (result) {
+            var d2 = $q.defer();
+            rejectNested = function () {
+                d2.reject('fail');
+            };
+            return d2.promise;
+        }).then(fulfilledSpy, rejectedSpy);
+        d.resolve(20);
+
+        $rootScope.$apply();
+        expect(fulfilledSpy).not.toHaveBeenCalled();
+
+        rejectNested();
+        $rootScope.$apply();
+        expect(fulfilledSpy).not.toHaveBeenCalled();
+        expect(rejectedSpy).toHaveBeenCalledWith('fail');
+    });
+
+    it('can report progress', function () {
+        var d = $q.defer();
+        var progressSpy = jasmine.createSpy();
+        d.promise.then(null, null, progressSpy);
+
+        d.notify('working...');
+        $rootScope.$apply();
+
+        expect(progressSpy).toHaveBeenCalledWith('working...');
+    });
+
+    it('can report progress many times', function () {
+        var d = $q.defer();
+        var progressSpy = jasmine.createSpy();
+        d.promise.then(null, null, progressSpy);
+
+        d.notify('40%');
+        $rootScope.$apply();
+
+        d.notify('80%');
+        d.notify('100%');
+        $rootScope.$apply();
+
+        expect(progressSpy.calls.count()).toBe(3);
+    });
+
+    it('does not notify progress after being resolved', function () {
+        var d = $q.defer();
+        var progressSpy = jasmine.createSpy();
+        d.promise.then(null, null, progressSpy);
+
+        d.resolve('ok');
+        d.notify('working...');
+        $rootScope.$apply();
+
+        expect(progressSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not notify progress after being rejected', function () {
+        var d = $q.defer();
+        var progressSpy = jasmine.createSpy();
+        d.promise.then(null, null, progressSpy);
+        
+        d.reject('fail');
+        d.notify('working...');
+        $rootScope.$apply();
+
+        expect(progressSpy).not.toHaveBeenCalled();
     });
 });

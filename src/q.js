@@ -7,10 +7,10 @@ function $QProvider() {
         function Promise() {
             this.$$state = {};
         }
-        Promise.prototype.then = function (onFulfilled, onRejected) {
+        Promise.prototype.then = function (onFulfilled, onRejected, onProgress) {
             var result = new Deferred();
             this.$$state.pending = this.$$state.pending || [];
-            this.$$state.pending.push([result, onFulfilled, onRejected]);
+            this.$$state.pending.push([result, onFulfilled, onRejected, onProgress]);
             if (this.$$state.status > 0) {
                 scheduleProcessQueue(this.$$state);
             }
@@ -20,10 +20,10 @@ function $QProvider() {
             return this.then(null, onRejected);
         };
         Promise.prototype.finally = function (callback) {
-            return this.then(function () {
-                callback();
-            }, function () {
-                callback();
+            return this.then(function (value) {
+                return handleFinallyCallback(callback, value, true);
+            }, function (rejection) {
+                return handleFinallyCallback(callback, rejection, false);
             });
         };
 
@@ -34,9 +34,16 @@ function $QProvider() {
             if (this.promise.$$state.status) {
                 return;
             }
-            this.promise.$$state.value = value;
-            this.promise.$$state.status = 1;
-            scheduleProcessQueue(this.promise.$$state);
+            if (value && _.isFunction(value.then)) {
+                value.then(
+                    _.bind(this.resolve, this),
+                    _.bind(this.reject, this)
+                );
+            } else {
+                this.promise.$$state.value = value;
+                this.promise.$$state.status = 1;
+                scheduleProcessQueue(this.promise.$$state);
+            }
         };
         Deferred.prototype.reject = function (reason) {
             if (this.promise.$$state.status) {
@@ -45,6 +52,19 @@ function $QProvider() {
             this.promise.$$state.value = reason;
             this.promise.$$state.status = 2;
             scheduleProcessQueue(this.promise.$$state);
+        };
+        Deferred.prototype.notify = function (progress) {
+            var pending = this.promise.$$state.pending;
+            if (pending && pending.length && !this.promise.$$state.status) {
+                $rootScope.$evalAsync(function () {
+                    _.forEach(pending, function (handlers) {
+                        var progressBack = handlers[3];
+                        if (_.isFunction(progressBack)) {
+                            progressBack(progress);
+                        }
+                    });
+                });
+            }
         };
 
 
@@ -76,6 +96,27 @@ function $QProvider() {
                     deferred.reject(e);
                 }
             });
+        }
+
+        function makePromise(value, resolved) {
+            var d = new Deferred();
+            if (resolved) {
+                d.resolve(value);
+            } else {
+                d.reject(value);
+            }
+            return d.promise;
+        }
+
+        function handleFinallyCallback(callback, value, resolved) {
+            var callbackValue = callback();
+            if (callbackValue && callbackValue.then) {
+                return callbackValue.then(function () {
+                    return makePromise(value, resolved);
+                });
+            } else {
+                return makePromise(value, resolved);
+            }
         }
 
         return {
