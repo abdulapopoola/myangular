@@ -19,12 +19,13 @@ function $QProvider() {
         Promise.prototype.catch = function (onRejected) {
             return this.then(null, onRejected);
         };
-        Promise.prototype.finally = function (callback) {
+        Promise.prototype.finally = function (callback, progressBack) {
             return this.then(function (value) {
                 return handleFinallyCallback(callback, value, true);
             }, function (rejection) {
                 return handleFinallyCallback(callback, rejection, false);
-            });
+            },
+                progressBack);
         };
 
         function Deferred() {
@@ -37,7 +38,8 @@ function $QProvider() {
             if (value && _.isFunction(value.then)) {
                 value.then(
                     _.bind(this.resolve, this),
-                    _.bind(this.reject, this)
+                    _.bind(this.reject, this),
+                    _.bind(this.notify, this)
                 );
             } else {
                 this.promise.$$state.value = value;
@@ -58,9 +60,15 @@ function $QProvider() {
             if (pending && pending.length && !this.promise.$$state.status) {
                 $rootScope.$evalAsync(function () {
                     _.forEach(pending, function (handlers) {
+                        var deferred = handlers[0];
                         var progressBack = handlers[3];
-                        if (_.isFunction(progressBack)) {
-                            progressBack(progress);
+                        try {
+                            deferred.notify(_.isFunction(progressBack) ?
+                                progressBack(progress) :
+                                progress
+                            );
+                        } catch (e) {
+                            console.log(e);
                         }
                     });
                 });
@@ -70,6 +78,37 @@ function $QProvider() {
 
         function defer() {
             return new Deferred();
+        }
+
+        function reject(rejection) {
+            var d = defer();
+            d.reject(rejection);
+            return d.promise;
+        }
+
+        function when(value, callback, errback, progressback) {
+            var d = defer();
+            d.resolve(value);
+            return d.promise.then(callback, errback, progressback);
+        }
+
+        function all(promises) {
+            var results = [];
+            var counter = 0;
+            var d = defer();
+
+            _.forEach(promises, function (promise, index) {
+                counter++;
+                promise.then(function (value) {
+                    results[index] = value;
+                    counter--;
+                    if (!counter) {
+                        d.resolve(results);
+                    }
+                });
+            });
+
+            return d.promise;
         }
 
         function scheduleProcessQueue(state) {
@@ -120,7 +159,11 @@ function $QProvider() {
         }
 
         return {
-            defer: defer
+            defer: defer,
+            reject: reject,
+            when: when,
+            resolve: when,
+            all: all
         };
     }];
 }
