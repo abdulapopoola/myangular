@@ -474,7 +474,7 @@ describe('injector', function () {
         it('does not inject a provider to invoke', function () {
             var module = window.angular.module('myModule', []);
             module.provider('a', function AProvider() {
-                this.$get = function () { return 1; }
+                this.$get = function () { return 1; };
             });
 
             var injector = createInjector(['myModule']);

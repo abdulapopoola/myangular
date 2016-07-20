@@ -38,4 +38,11 @@ describe('angularPublic', function () {
         var injector = createInjector(['ng']);
         expect(injector.has('$q')).toBe(true);
     });
+
+    it('sets up $http and $httpBackend', function () {
+        publishExternalAPI();
+        var injector = createInjector(['ng']);
+        expect(injector.has('$http')).toBe(true);
+        expect(injector.has('$httpBackend')).toBe(true);
+    });
 });
