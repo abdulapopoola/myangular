@@ -13,6 +13,7 @@ module.exports = function (config) {
         browserify: {
             debug: true
         },
+        port: 9870
         //logLevel: config.LOG_DEBUG
     });
 };

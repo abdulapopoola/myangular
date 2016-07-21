@@ -60,11 +60,47 @@ describe('$http', function () {
         });
 
         requests[0].respond(200, {}, 'Hello');
-        
+
         expect(response).toBeDefined();
         expect(response.status).toBe(200);
         expect(response.statusText).toBe('OK');
         expect(response.data).toBe('Hello');
+        expect(response.config.url).toEqual('http://teropa.info');
+    });
+
+    it('rejects promise when XHR result received with error status', function () {
+        var requestConfig = {
+            method: 'GET',
+            url: 'http://teropa.info'
+        };
+
+        var response;
+        $http(requestConfig).catch(function (r) {
+            response = r;
+        });
+
+        requests[0].respond(401, {}, 'Fail');
+
+        expect(response).toBeDefined();
+        expect(response.status).toBe(401);
+        expect(response.statusText).toBe('Unauthorized');
+        expect(response.data).toBe('Fail');
+        expect(response.config.url).toEqual('http://teropa.info');
+    });
+
+    it('rejects promise when XHR result errors/aborts', function () {
+        var requestConfig = {
+            method: 'GET',
+            url: 'http://teropa.info'
+        };
+        var response;
+        $http(requestConfig).catch(function (r) {
+            response = r;
+        });
+        requests[0].onerror();
+        expect(response).toBeDefined();
+        expect(response.status).toBe(0);
+        expect(response.data).toBe(null);
         expect(response.config.url).toEqual('http://teropa.info');
     });
 });
