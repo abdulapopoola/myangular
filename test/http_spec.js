@@ -103,4 +103,34 @@ describe('$http', function () {
         expect(response.data).toBe(null);
         expect(response.config.url).toEqual('http://teropa.info');
     });
+
+    it('uses GET method by default', function () {
+        $http({
+            url: 'http://teropa.info'
+        });
+        expect(requests.length).toBe(1);
+        expect(requests[0].method).toBe('GET');
+    });
+
+    it('sets headers on request', function () {
+        $http({
+            url: 'http://teropa.info',
+            headers: {
+                'Accept': 'text/plain',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        expect(requests.length).toBe(1);
+        expect(requests[0].requestHeaders.Accept).toBe('text/plain');
+        expect(requests[0].requestHeaders['Cache-Control']).toBe('no-cache');
+    });
+
+    it('sets default headers on request', function () {
+        $http({
+            url: 'http://teropa.info'
+        });
+        expect(requests.length).toBe(1);
+        expect(requests[0].requestHeaders.Accept).toBe(
+            'application/json, text/plain, */*');
+    });
 });
