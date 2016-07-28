@@ -228,4 +228,188 @@ describe('$http', function () {
         expect(cacheControlSpy).toHaveBeenCalledWith(request);
         expect(requests[0].requestHeaders['Cache-Control']).toBeUndefined();
     });
+
+    it('makes response headers available', function () {
+        var response;
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42
+        }).then(function (r) {
+            response = r;
+        });
+        requests[0].respond(200, { 'Content-Type': 'text/plain' }, 'Hello');
+        expect(response.headers).toBeDefined();
+        expect(response.headers instanceof Function).toBe(true);
+        expect(response.headers('Content-Type')).toBe('text/plain');
+        expect(response.headers('content-type')).toBe('text/plain');
+    });
+
+    it('may returns all response headers', function () {
+        var response;
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42
+        }).then(function (r) {
+            response = r;
+        });
+        requests[0].respond(200, { 'Content-Type': 'text/plain' }, 'Hello');
+        expect(response.headers()).toEqual({ 'content-type': 'text/plain' });
+    });
+
+    it('allows setting withCredentials', function () {
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42,
+            withCredentials: true
+        });
+        expect(requests[0].withCredentials).toBe(true);
+    });
+
+    it('allows setting withCredentials from defaults', function () {
+        $http.defaults.withCredentials = true;
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42
+        });
+        expect(requests[0].withCredentials).toBe(true);
+    });
+
+    it('allows transforming requests with functions', function () {
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42,
+            transformRequest: function (data) {
+                return '*' + data + '*';
+            }
+        });
+        expect(requests[0].requestBody).toBe('*42*');
+    });
+
+    it('allows multiple request transform functions', function () {
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42,
+            transformRequest: [function (data) {
+                return '*' + data + '*';
+            }, function (data) {
+                return '-' + data + '-';
+            }]
+        });
+        expect(requests[0].requestBody).toBe('-*42*-');
+    });
+
+    it('allows settings transforms in defaults', function () {
+        $http.defaults.transformRequest = [function (data) {
+            return '*' + data + '*';
+        }];
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42
+        });
+        expect(requests[0].requestBody).toBe('*42*');
+    });
+
+    it('passes request headers getter to transforms', function () {
+        $http.defaults.transformRequest = [function (data, headers) {
+            if (headers('Content-Type') === 'text/emphasized') {
+                return '*' + data + '*';
+            } else {
+                return data;
+            }
+        }];
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: 42,
+            headers: {
+                'content-type': 'text/emphasized'
+            }
+        });
+        expect(requests[0].requestBody).toBe('*42*');
+    });
+
+    it('allows transforming responses with functions', function () {
+        var response;
+        $http({
+            url: 'http://teropa.info',
+            transformResponse: function (data) {
+                return '*' + data + '*';
+            }
+        }).then(function (r) {
+            response = r;
+        });
+        requests[0].respond(200, { 'Content-Type': 'text/plain' }, 'Hello');
+        expect(response.data).toEqual('*Hello*');
+    });
+
+    it('passes response headers to transform functions', function () {
+        var response;
+        $http({
+            url: 'http://teropa.info',
+            transformResponse: function (data, headers) {
+                if (headers('content-type') === 'text/decorated') {
+                    return '*' + data + '*';
+                } else {
+                    return data;
+                }
+            }
+        }).then(function (r) {
+            response = r;
+        });
+        requests[0].respond(200, { 'Content-Type': 'text/decorated' }, 'Hello');
+        expect(response.data).toEqual('*Hello*');
+    });
+
+    it('allows setting default response transforms', function () {
+        $http.defaults.transformResponse = [function (data) {
+            return '*' + data + '*';
+        }];
+        var response;
+        $http({
+            url: 'http://teropa.info'
+        }).then(function (r) {
+            response = r;
+        });
+        requests[0].respond(200, { 'Content-Type': 'text/plain' }, 'Hello');
+        expect(response.data).toEqual('*Hello*');
+    });
+
+    it('transforms error responses also', function () {
+        var response;
+        $http({
+            url: 'http://teropa.info',
+            transformResponse: function (data) {
+                return '*' + data + '*';
+            }
+        }).catch(function (r) {
+            response = r;
+        });
+        requests[0].respond(401, { 'Content-Type': 'text/plain' }, 'Fail');
+        expect(response.data).toEqual('*Fail*');
+    });
+
+    it('passes HTTP status to response transformers', function () {
+        var response;
+        $http({
+            url: 'http://teropa.info',
+            transformResponse: function (data, headers, status) {
+                if (status === 401) {
+                    return 'unauthorized';
+                } else {
+                    return data;
+                }
+            }
+        }).catch(function (r) {
+            response = r;
+        });
+        requests[0].respond(401, { 'Content-Type': 'text/plain' }, 'Fail');
+        expect(response.data).toEqual('unauthorized');
+    });
 });
