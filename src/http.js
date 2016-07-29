@@ -6,13 +6,13 @@ function isSuccess(status) {
     return status >= 200 && status < 300;
 }
 function isBlob(object) {
- return object.toString() === '[object Blob]';
+    return object.toString() === '[object Blob]';
 }
 function isFile(object) {
- return object.toString() === '[object File]';
+    return object.toString() === '[object File]';
 }
 function isFormData(object) {
- return object.toString() === '[object FormData]';
+    return object.toString() === '[object FormData]';
 }
 
 function $HttpProvider() {
