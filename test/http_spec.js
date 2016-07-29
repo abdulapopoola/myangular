@@ -412,4 +412,52 @@ describe('$http', function () {
         requests[0].respond(401, { 'Content-Type': 'text/plain' }, 'Fail');
         expect(response.data).toEqual('unauthorized');
     });
+
+    it('serializes object data to JSON for requests', function () {
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: { aKey: 42 }
+        });
+        expect(requests[0].requestBody).toBe('{"aKey":42}');
+    });
+
+    it('serializes array data to JSON for requests', function () {
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: [1, 'two', 3]
+        });
+        expect(requests[0].requestBody).toBe('[1,"two",3]');
+    });
+
+    it("does not serialize blobs for requests", function () {
+        var blob;
+        if (window.Blob) {
+            blob = new Blob(['hello']);
+        } else {
+            var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder ||
+                window.MozBlobBuilder || window.MSBlobBuilder;
+            var bb = new BlobBuilder();
+            bb.append('hello');
+            blob = bb.getBlob('text / plain');
+        }
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: blob
+        });
+        expect(requests[0].requestBody).toBe(blob);
+    });
+
+    it('does not serialize form data for requests', function () {
+        var formData = new FormData();
+        formData.append('aField', 'aValue');
+        $http({
+            method: 'POST',
+            url: 'http://teropa.info',
+            data: formData
+        });
+        expect(requests[0].requestBody).toBe(formData);
+    });
 });

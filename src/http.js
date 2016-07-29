@@ -5,6 +5,15 @@ var _ = require('lodash');
 function isSuccess(status) {
     return status >= 200 && status < 300;
 }
+function isBlob(object) {
+ return object.toString() === '[object Blob]';
+}
+function isFile(object) {
+ return object.toString() === '[object File]';
+}
+function isFormData(object) {
+ return object.toString() === '[object FormData]';
+}
 
 function $HttpProvider() {
     var defaults = this.defaults = {
@@ -21,7 +30,15 @@ function $HttpProvider() {
             patch: {
                 'Content-Type': 'application/json;charset=utf-8'
             }
-        }
+        },
+        transformRequest: [function (data) {
+            if (_.isObject(data) && !isBlob(data) &&
+                !isFile(data) && !isFormData(data)) {
+                return JSON.stringify(data);
+            } else {
+                return data;
+            }
+        }]
     };
 
     function mergeHeaders(config) {
