@@ -14,6 +14,37 @@ function isFile(object) {
 function isFormData(object) {
     return object.toString() === '[object FormData]';
 }
+function isJsonLike(data) {
+    if (data.match(/^\{(?!\{)/)) {
+        return data.match(/\}$/);
+    } else if (data.match(/^\[/)) {
+        return data.match(/\]$/);
+    }
+}
+function defaultHttpResponseTransform(data, headers) {
+    if (_.isString(data)) {
+        var contentType = headers('Content-Type');
+        if ((contentType && contentType.indexOf('application/json') === 0) ||
+            isJsonLike(data)) {
+            return JSON.parse(data);
+        }
+    }
+    return data;
+}
+function serializeParams(params) {
+    var parts = [];
+    _.forEach(params, function (value, key) {
+        parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+    });
+    return parts.join('&');
+}
+function buildUrl(url, serializedParams) {
+    if (serializedParams.length) {
+        url += (url.indexOf('?') === -1) ? '?' : '&';
+        url += serializedParams;
+    }
+    return url;
+}
 
 function $HttpProvider() {
     var defaults = this.defaults = {
@@ -38,7 +69,8 @@ function $HttpProvider() {
             } else {
                 return data;
             }
-        }]
+        }],
+        transformResponse: [defaultHttpResponseTransform]
     };
 
     function mergeHeaders(config) {
@@ -133,9 +165,11 @@ function $HttpProvider() {
                     }
                 }
 
+                var url = buildUrl(config.url, serializeParams(config.params));
+
                 $httpBackend(
                     config.method,
-                    config.url,
+                    url,
                     reqData,
                     done,
                     config.headers,
