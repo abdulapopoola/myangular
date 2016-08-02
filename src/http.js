@@ -99,6 +99,7 @@ function $HttpParamSerializerProvider() {
 }
 
 function $HttpProvider() {
+    var interceptorFactories = this.interceptors = [];
     var defaults = this.defaults = {
         headers: {
             common: {
@@ -202,6 +203,48 @@ function $HttpProvider() {
 
     this.$get = ['$httpBackend', '$q', '$rootScope', '$injector',
         function ($httpBackend, $q, $rootScope, $injector) {
+            var interceptors = _.map(interceptorFactories, function (fn) {
+                return _.isString(fn) ? $injector.get(fn) :
+                    $injector.invoke(fn);
+            });
+
+
+            function serverRequest(config) {
+                if (_.isUndefined(config.withCredentials) &&
+                    !_.isUndefined(defaults.withCredentials)) {
+                    config.withCredentials = defaults.withCredentials;
+                }
+                var reqData = transformData(
+                    config.data,
+                    headersGetter(config.headers),
+                    undefined,
+                    config.transformRequest
+                );
+                if (_.isUndefined(reqData)) {
+                    _.forEach(config.headers, function (v, k) {
+                        if (k.toLowerCase() === 'content-type') {
+                            delete config.headers[k];
+                        }
+                    });
+                }
+                function transformResponse(response) {
+                    if (response.data) {
+                        response.data = transformData(
+                            response.data,
+                            response.headers,
+                            response.status,
+                            config.transformResponse
+                        );
+                    }
+                    if (isSuccess(response.status)) {
+                        return response;
+                    } else {
+                        return $q.reject(response);
+                    }
+                }
+                return sendReq(config, reqData)
+                    .then(transformResponse, transformResponse);
+            }
             function sendReq(config, reqData) {
                 var deferred = $q.defer();
                 function done(status, response, headersString, statusText) {
@@ -241,49 +284,19 @@ function $HttpProvider() {
                     transformResponse: defaults.transformResponse,
                     paramSerializer: defaults.paramSerializer
                 }, requestConfig);
-                config.headers = mergeHeaders(requestConfig);
                 if (_.isString(config.paramSerializer)) {
                     config.paramSerializer = $injector.get(config.paramSerializer);
                 }
-
-                if (_.isUndefined(config.withCredentials) &&
-                    !_.isUndefined(defaults.withCredentials)) {
-                    config.withCredentials = defaults.withCredentials;
-                }
-
-                var reqData = transformData(
-                    config.data,
-                    headersGetter(config.headers),
-                    undefined,
-                    config.transformRequest
-                );
-
-                if (_.isUndefined(reqData)) {
-                    _.forEach(config.headers, function (v, k) {
-                        if (k.toLowerCase() === 'content-type') {
-                            delete config.headers[k];
-                        }
-                    });
-                }
-
-                function transformResponse(response) {
-                    if (response.data) {
-                        response.data = transformData(
-                            response.data,
-                            response.headers,
-                            response.status,
-                            config.transformResponse
-                        );
-                    }
-                    if (isSuccess(response.status)) {
-                        return response;
-                    } else {
-                        return $q.reject(response);
-                    }
-                }
-
-                return sendReq(config, reqData)
-                    .then(transformResponse, transformResponse);
+                config.headers = mergeHeaders(requestConfig);
+                var promise = $q.when(config);
+                _.forEach(interceptors, function (interceptor) {
+                    promise = promise.then(interceptor.request);
+                });
+                promise = promise.then(serverRequest);
+                _.forEachRight(interceptors, function (interceptor) {
+                    promise = promise.then(interceptor.response);
+                });
+                return promise;
             }
             $http.defaults = defaults;
             _.forEach(['get', 'head', 'delete'], function (method) {
