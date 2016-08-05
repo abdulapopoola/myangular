@@ -290,12 +290,24 @@ function $HttpProvider() {
                 config.headers = mergeHeaders(requestConfig);
                 var promise = $q.when(config);
                 _.forEach(interceptors, function (interceptor) {
-                    promise = promise.then(interceptor.request);
+                    promise = promise.then(interceptor.request, interceptor.requestError);
                 });
                 promise = promise.then(serverRequest);
                 _.forEachRight(interceptors, function (interceptor) {
-                    promise = promise.then(interceptor.response);
+                    promise = promise.then(interceptor.response, interceptor.responseError);
                 });
+                promise.success = function (fn) {
+                    promise.then(function (response) {
+                        fn(response.data, response.status, response.headers, config);
+                    });
+                    return promise;
+                };
+                promise.error = function (fn) {
+                    promise.catch(function (response) {
+                        fn(response.data, response.status, response.headers, config);
+                    });
+                    return promise;
+                };
                 return promise;
             }
             $http.defaults = defaults;
