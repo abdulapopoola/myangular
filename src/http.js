@@ -100,6 +100,17 @@ function $HttpParamSerializerProvider() {
 
 function $HttpProvider() {
     var interceptorFactories = this.interceptors = [];
+
+    var useApplyAsync = false;
+    this.useApplyAsync = function (value) {
+        if (_.isUndefined(value)) {
+            return useApplyAsync;
+        } else {
+            useApplyAsync = !!value;
+            return this;
+        }
+    };
+
     var defaults = this.defaults = {
         headers: {
             common: {
@@ -247,17 +258,31 @@ function $HttpProvider() {
             }
             function sendReq(config, reqData) {
                 var deferred = $q.defer();
+                $http.pendingRequests.push(config);
+                deferred.promise.then(function () {
+                    _.remove($http.pendingRequests, config);
+                }, function () {
+                    _.remove($http.pendingRequests, config);
+                });
                 function done(status, response, headersString, statusText) {
                     status = Math.max(status, 0);
-                    deferred[isSuccess(status) ? 'resolve' : 'reject']({
-                        status: status,
-                        data: response,
-                        statusText: statusText,
-                        headers: headersGetter(headersString),
-                        config: config
-                    });
-                    if (!$rootScope.$$phase) {
-                        $rootScope.$apply();
+                    function resolvePromise() {
+                        deferred[isSuccess(status) ? 'resolve' : 'reject']({
+                            status: status,
+                            data: response,
+                            statusText: statusText,
+                            headers: headersGetter(headersString),
+                            config: config
+                        });
+                    }
+                    
+                    if (useApplyAsync) {
+                        $rootScope.$applyAsync(resolvePromise);
+                    } else {
+                        resolvePromise();
+                        if (!$rootScope.$$phase) {
+                            $rootScope.$apply();
+                        }
                     }
                 }
 
@@ -272,6 +297,7 @@ function $HttpProvider() {
                     reqData,
                     done,
                     config.headers,
+                    config.timeout,
                     config.withCredentials
                 );
                 return deferred.promise;
@@ -311,6 +337,8 @@ function $HttpProvider() {
                 return promise;
             }
             $http.defaults = defaults;
+            $http.pendingRequests = [];
+
             _.forEach(['get', 'head', 'delete'], function (method) {
                 $http[method] = function (url, config) {
                     return $http(_.extend(config || {}, {
