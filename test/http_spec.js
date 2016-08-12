@@ -88,8 +88,8 @@ describe('$http', function () {
         $http(requestConfig).catch(function (r) {
             response = r;
         });
-        requests[0].respond(401, {}, 'Fail');
         $rootScope.$apply();
+        requests[0].respond(401, {}, 'Fail');
 
         expect(response).toBeDefined();
         expect(response.status).toBe(401);
