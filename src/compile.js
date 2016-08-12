@@ -89,15 +89,16 @@ function $CompileProvider($provide) {
 
         function compileNodes($compileNodes) {
             _.forEach($compileNodes, function (node) {
-                var directives = collectDirectives(node);
-                var terminal = applyDirectivesToNode(directives, node);
+                var attrs = {};
+                var directives = collectDirectives(node, attrs);
+                var terminal = applyDirectivesToNode(directives, node, attrs);
                 if (!terminal && node.childNodes && node.childNodes.length) {
                     compileNodes(node.childNodes);
                 }
             });
         }
 
-        function collectDirectives(node) {
+        function collectDirectives(node, attrs) {
             var directives = [];
             if (node.nodeType === Node.ELEMENT_NODE) {
                 var normalizedNodeName = directiveNormalize(nodeName(node).toLowerCase());
@@ -122,6 +123,7 @@ function $CompileProvider($provide) {
                     }
                     normalizedAttrName = directiveNormalize(name.toLowerCase());
                     addDirective(directives, normalizedAttrName, 'A', attrStartName, attrEndName);
+                    attrs[normalizedAttrName] = attr.value.trim();
                 });
                 _.forEach(node.classList, function (cls) {
                     var normalizedClassName = directiveNormalize(cls);
@@ -158,7 +160,7 @@ function $CompileProvider($provide) {
             return $(nodes);
         }
 
-        function applyDirectivesToNode(directives, compileNode) {
+        function applyDirectivesToNode(directives, compileNode, attrs) {
             var $compileNode = $(compileNode);
             var terminalPriority = -Number.MAX_VALUE;
             var terminal = false;
@@ -170,7 +172,7 @@ function $CompileProvider($provide) {
                     return false;
                 }
                 if (directive.compile) {
-                    directive.compile($compileNode);
+                    directive.compile($compileNode, attrs);
                 }
                 if (directive.terminal) {
                     terminal = true;

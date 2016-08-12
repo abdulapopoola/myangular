@@ -607,6 +607,41 @@ describe('$compile', function () {
             expect(compileEl.length).toBe(3);
         });
     });
+
+    describe('attributes', function () {
+        it('passes the element attributes to the compile function', function () {
+            var injector = makeInjectorWithDirectives('myDirective', function () {
+                return {
+                    restrict: 'E',
+                    compile: function (element, attrs) {
+                        element.data('givenAttrs', attrs);
+                    }
+                };
+            });
+            injector.invoke(function ($compile) {
+                var el = $('<my-directive my-attr="1" my-other-attr="two"></my-directive>');
+                $compile(el);
+                expect(el.data('givenAttrs').myAttr).toEqual('1');
+                expect(el.data('givenAttrs').myOtherAttr).toEqual('two');
+            });
+        });
+
+        it('trims attribute values', function () {
+            var injector = makeInjectorWithDirectives('myDirective', function () {
+                return {
+                    restrict: 'E',
+                    compile: function (element, attrs) {
+                        element.data('givenAttrs', attrs);
+                    }
+                };
+            });
+            injector.invoke(function ($compile) {
+                var el = $('<my-directive my-attr=" val "></my-directive>');
+                $compile(el);
+                expect(el.data('givenAttrs').myAttr).toEqual('val');
+            });
+        });
+    });
 });
 
 function makeInjectorWithDirectives() {
