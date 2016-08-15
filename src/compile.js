@@ -84,7 +84,12 @@ function $CompileProvider($provide) {
         }
 
         function compile($compileNodes) {
-            return compileNodes($compileNodes);
+            var compositeLinkFn = compileNodes($compileNodes);
+
+            return function publicLinkFn(scope) {
+                $compileNodes.data('$scope', scope);
+                compositeLinkFn(scope, $compileNodes);
+            };
         }
 
         function compileNodes($compileNodes) {
@@ -96,6 +101,11 @@ function $CompileProvider($provide) {
                     compileNodes(node.childNodes);
                 }
             });
+
+            function compositeLinkFn(scope, linkNodes) {
+
+            }
+            return compositeLinkFn;
         }
 
         function collectDirectives(node, attrs) {

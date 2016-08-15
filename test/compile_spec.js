@@ -641,6 +641,54 @@ describe('$compile', function () {
                 expect(el.data('givenAttrs').myAttr).toEqual('val');
             });
         });
+
+        it('returns a public link function from compile', function () {
+            var injector = makeInjectorWithDirectives('myDirective', function () {
+                return { compile: _.noop };
+            });
+            injector.invoke(function ($compile) {
+                var el = $('<div my-directive></div>');
+                var linkFn = $compile(el);
+                expect(linkFn).toBeDefined();
+                expect(_.isFunction(linkFn)).toBe(true);
+            });
+        });
+
+        describe('linking', function () {
+            it('takes a scope and attaches it to elements', function () {
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return { compile: _.noop };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div my-directive></div>');
+                    $compile(el)($rootScope);
+                    expect(el.data('$scope')).toBe($rootScope);
+                });
+            });
+
+            it('calls directive link function with scope', function () {
+                var givenScope, givenElement, givenAttrs;
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return {
+                        compile: function () {
+                            return function link(scope, element, attrs) {
+                                givenScope = scope;
+                                givenElement = element;
+                                givenAttrs = attrs;
+                            };
+                        }
+                    };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div my-directive></div>');
+                    $compile(el)($rootScope);
+                    expect(givenScope).toBe($rootScope);
+                    expect(givenElement[0]).toBe(el[0]);
+                    expect(givenAttrs).toBeDefined();
+                    expect(givenAttrs.myDirective).toBeDefined();
+                });
+            });
+        });
     });
 });
 
