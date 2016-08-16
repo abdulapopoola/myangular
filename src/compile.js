@@ -29,6 +29,9 @@ function $CompileProvider($provide) {
                         var directive = $injector.invoke(factory);
                         directive.restrict = directive.restrict || 'EA';
                         directive.priority = directive.priority || 0;
+                        if (directive.link && !directive.compile) {
+                            directive.compile = _.constant(directive.link);
+                        }
                         directive.name = directive.name || name;
                         directive.index = i;
                         return directive;
@@ -93,18 +96,46 @@ function $CompileProvider($provide) {
         }
 
         function compileNodes($compileNodes) {
-            _.forEach($compileNodes, function (node) {
+            var linkFns = [];
+
+            _.forEach($compileNodes, function (node, i) {
                 var attrs = {};
                 var directives = collectDirectives(node, attrs);
-                var terminal = applyDirectivesToNode(directives, node, attrs);
-                if (!terminal && node.childNodes && node.childNodes.length) {
-                    compileNodes(node.childNodes);
+                var nodeLinkFn;
+                if (directives.length) {
+                    nodeLinkFn = applyDirectivesToNode(directives, node, attrs);
+                }
+                var childLinkFn;
+                if ((!nodeLinkFn || !nodeLinkFn.terminal) &&
+                    node.childNodes && node.childNodes.length) {
+                    childLinkFn = compileNodes(node.childNodes);
+                }
+                if (nodeLinkFn || childLinkFn) {
+                    linkFns.push({
+                        nodeLinkFn: nodeLinkFn,
+                        childLinkFn: childLinkFn,
+                        idx: i
+                    });
                 }
             });
 
             function compositeLinkFn(scope, linkNodes) {
-
+                _.forEach(linkFns, function (linkFn) {
+                    if (linkFn.nodeLinkFn) {
+                        linkFn.nodeLinkFn(
+                            linkFn.childLinkFn,
+                            scope,
+                            linkNodes[linkFn.idx]
+                        );
+                    } else {
+                        linkFn.childLinkFn(
+                            scope,
+                            linkNodes[linkFn.idx].childNodes
+                        );
+                    }
+                });
             }
+
             return compositeLinkFn;
         }
 
@@ -174,6 +205,7 @@ function $CompileProvider($provide) {
             var $compileNode = $(compileNode);
             var terminalPriority = -Number.MAX_VALUE;
             var terminal = false;
+            var linkFns = [];
             _.forEach(directives, function (directive) {
                 if (directive.$$start) {
                     $compileNode = groupScan(compileNode, directive.$$start, directive.$$end);
@@ -182,14 +214,28 @@ function $CompileProvider($provide) {
                     return false;
                 }
                 if (directive.compile) {
-                    directive.compile($compileNode, attrs);
+                    var linkFn = directive.compile($compileNode, attrs);
+                    if (linkFn) {
+                        linkFns.push(linkFn);
+                    }
                 }
                 if (directive.terminal) {
                     terminal = true;
                     terminalPriority = directive.priority;
                 }
             });
-            return terminal;
+
+            function nodeLinkFn(childLinkFn, scope, linkNode) {
+                if (childLinkFn) {
+                    childLinkFn(scope, linkNode.childNodes);
+                }
+                _.forEach(linkFns, function (linkFn) {
+                    var $element = $(linkNode);
+                    linkFn(scope, $element, attrs);
+                });
+            }
+            nodeLinkFn.terminal = terminal;
+            return nodeLinkFn;
         }
 
         return compile;
