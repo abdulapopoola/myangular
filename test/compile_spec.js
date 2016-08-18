@@ -829,6 +829,105 @@ describe('$compile', function () {
                     ]);
                 });
             });
+
+            it('stabilizes node list during linking', function () {
+                var givenElements = [];
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return {
+                        link: function (scope, element, attrs) {
+                            givenElements.push(element[0]);
+                            element.after('<div></div>');
+                        }
+                    };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div><div my-directive></div><div my-directive></div></div>');
+                    var el1 = el[0].childNodes[0], el2 = el[0].childNodes[1];
+                    $compile(el)($rootScope);
+                    expect(givenElements.length).toBe(2);
+                    expect(givenElements[0]).toBe(el1);
+                    expect(givenElements[1]).toBe(el2);
+                });
+            });
+
+            it('invokes multi-element directive link functions with whole group', function () {
+                var givenElements;
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return {
+                        multiElement: true,
+                        link: function (scope, element, attrs) {
+                            givenElements = element;
+                        }
+                    };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $(
+                        '<div my-directive-start></div>' +
+                        '<p></p>' +
+                        '<div my-directive-end></div>'
+                    );
+                    $compile(el)($rootScope);
+                    expect(givenElements.length).toBe(3);
+                });
+            });
+
+            it('makes new scope for element when directive asks for it', function () {
+                var givenScope;
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return {
+                        scope: true,
+                        link: function (scope) {
+                            givenScope = scope;
+                        }
+                    };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div my-directive></div>');
+                    $compile(el)($rootScope);
+                    expect(givenScope.$parent).toBe($rootScope);
+                });
+            });
+
+            it('gives inherited scope to all directives on element', function () {
+                var givenScope;
+                var injector = makeInjectorWithDirectives({
+                    myDirective: function () {
+                        return {
+                            scope: true
+                        };
+                    },
+                    myOtherDirective: function () {
+                        return {
+                            link: function (scope) {
+                                givenScope = scope;
+                            }
+                        };
+                    }
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div my-directive my-other-directive></div>');
+                    $compile(el)($rootScope);
+                    expect(givenScope.$parent).toBe($rootScope);
+                });
+            });
+
+            it('adds scope class and data for element with new scope', function () {
+                var givenScope;
+                var injector = makeInjectorWithDirectives('myDirective', function () {
+                    return {
+                        scope: true,
+                        link: function (scope) {
+                            givenScope = scope;
+                        }
+                    };
+                });
+                injector.invoke(function ($compile, $rootScope) {
+                    var el = $('<div my-directive></div>');
+                    $compile(el)($rootScope);
+                    expect(el.hasClass('ng-scope')).toBe(true);
+                    expect(el.data('$scope')).toBe(givenScope);
+                });
+            });
         });
     });
 });

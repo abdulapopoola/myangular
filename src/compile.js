@@ -99,7 +99,7 @@ function $CompileProvider($provide) {
             var linkFns = [];
 
             _.forEach($compileNodes, function (node, i) {
-                var attrs = {};
+                var attrs = new Attributes($(node));
                 var directives = collectDirectives(node, attrs);
                 var nodeLinkFn;
                 if (directives.length) {
@@ -109,6 +109,9 @@ function $CompileProvider($provide) {
                 if ((!nodeLinkFn || !nodeLinkFn.terminal) &&
                     node.childNodes && node.childNodes.length) {
                     childLinkFn = compileNodes(node.childNodes);
+                }
+                if (nodeLinkFn && nodeLinkFn.scope) {
+                    attrs.$$element.addClass('ng-scope');
                 }
                 if (nodeLinkFn || childLinkFn) {
                     linkFns.push({
@@ -120,17 +123,29 @@ function $CompileProvider($provide) {
             });
 
             function compositeLinkFn(scope, linkNodes) {
+                var stableNodeList = [];
                 _.forEach(linkFns, function (linkFn) {
+                    var nodeIdx = linkFn.idx;
+                    stableNodeList[nodeIdx] = linkNodes[nodeIdx];
+                });
+
+                _.forEach(linkFns, function (linkFn) {
+                    var node = stableNodeList[linkFn.idx];
+
                     if (linkFn.nodeLinkFn) {
+                        if (linkFn.nodeLinkFn.scope) {
+                            scope = scope.$new();
+                            $(node).data('$scope', scope);
+                        }
                         linkFn.nodeLinkFn(
                             linkFn.childLinkFn,
                             scope,
-                            linkNodes[linkFn.idx]
+                            node
                         );
                     } else {
                         linkFn.childLinkFn(
                             scope,
-                            linkNodes[linkFn.idx].childNodes
+                            node.childNodes
                         );
                     }
                 });
@@ -201,30 +216,57 @@ function $CompileProvider($provide) {
             return $(nodes);
         }
 
+        function groupElementsLinkFnWrapper(linkFn, attrStart, attrEnd) {
+            return function (scope, element, attrs) {
+                var group = groupScan(element[0], attrStart, attrEnd);
+                return linkFn(scope, group, attrs);
+            };
+        }
+
         function applyDirectivesToNode(directives, compileNode, attrs) {
             var $compileNode = $(compileNode);
             var terminalPriority = -Number.MAX_VALUE;
             var terminal = false;
             var preLinkFns = [];
             var postLinkFns = [];
+            var newScopeDirective;
+
+            function addLinkFns(preLinkFn, postLinkFn, attrStart, attrEnd) {
+                if (preLinkFn) {
+                    if (attrStart) {
+                        preLinkFn = groupElementsLinkFnWrapper(preLinkFn, attrStart, attrEnd);
+                    }
+                    preLinkFns.push(preLinkFn);
+                }
+                if (postLinkFn) {
+                    if (attrStart) {
+                        postLinkFn = groupElementsLinkFnWrapper(postLinkFn, attrStart, attrEnd);
+                    }
+                    postLinkFns.push(postLinkFn);
+                }
+            }
+
             _.forEach(directives, function (directive) {
                 if (directive.$$start) {
                     $compileNode = groupScan(compileNode, directive.$$start, directive.$$end);
                 }
+
                 if (directive.priority < terminalPriority) {
                     return false;
                 }
+
+                if (directive.scope) {
+                    newScopeDirective = newScopeDirective || directive;
+                }
+
                 if (directive.compile) {
                     var linkFn = directive.compile($compileNode, attrs);
+                    var attrStart = directive.$$start;
+                    var attrEnd = directive.$$end;
                     if (_.isFunction(linkFn)) {
-                        postLinkFns.push(linkFn);
+                        addLinkFns(null, linkFn, attrStart, attrEnd);
                     } else if (linkFn) {
-                        if (linkFn.pre) {
-                            preLinkFns.push(linkFn.pre);
-                        }
-                        if (linkFn.post) {
-                            postLinkFns.push(linkFn.post);
-                        }
+                        addLinkFns(linkFn.pre, linkFn.post, attrStart, attrEnd);
                     }
                 }
                 if (directive.terminal) {
@@ -248,6 +290,8 @@ function $CompileProvider($provide) {
                 });
             }
             nodeLinkFn.terminal = terminal;
+            nodeLinkFn.scope = newScopeDirective && newScopeDirective.scope;
+
             return nodeLinkFn;
         }
 
