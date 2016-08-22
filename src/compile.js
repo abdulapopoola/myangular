@@ -123,7 +123,7 @@ function $CompileProvider($provide) {
             var linkFns = [];
 
             _.forEach($compileNodes, function (node, i) {
-                var attrs = new Attributes($(node));
+                var attrs = {}; //new Attributes($(node));
                 var directives = collectDirectives(node, attrs);
                 var nodeLinkFn;
                 if (directives.length) {

@@ -676,6 +676,17 @@ describe('$compile', function () {
                 }
             );
         });
+
+        it('allows setting attributes', function () {
+            registerAndCompile(
+                'myDirective',
+                '<my-directive attr="true"></my-directive>',
+                function (element, attrs) {
+                    attrs.$set('attr', 'false');
+                    expect(attrs.attr).toEqual('false');
+                }
+            );
+        });
     });
 
     it('returns a public link function from compile', function () {
