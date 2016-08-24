@@ -71,6 +71,15 @@ function $CompileProvider($provide) {
     };
 
     this.$get = ['$injector', function ($injector) {
+        function Attributes(element) {
+            this.$$element = element;
+        }
+
+        Attributes.prototype.$set = function (key, value) {
+            this[key] = value;
+            this.$$element.attr(key, value);
+        };
+
         function addDirective(directives, name, mode, attrStartName, attrEndName) {
             if (hasDirectives.hasOwnProperty(name)) {
                 var foundDirectives = $injector.get(name + 'Directive');
@@ -123,7 +132,7 @@ function $CompileProvider($provide) {
             var linkFns = [];
 
             _.forEach($compileNodes, function (node, i) {
-                var attrs = {}; //new Attributes($(node));
+                var attrs = new Attributes($(node));
                 var directives = collectDirectives(node, attrs);
                 var nodeLinkFn;
                 if (directives.length) {
