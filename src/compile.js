@@ -75,9 +75,16 @@ function $CompileProvider($provide) {
             this.$$element = element;
         }
 
-        Attributes.prototype.$set = function (key, value) {
+        Attributes.prototype.$set = function (key, value, writeAttr) {
             this[key] = value;
-            this.$$element.attr(key, value);
+   
+            if (isBooleanAttribute(this.$$element[0], key)) {
+                this.$$element.prop(key, value);
+            }
+
+            if (writeAttr !== false) {
+                this.$$element.attr(key, value);
+            }
         };
 
         function addDirective(directives, name, mode, attrStartName, attrEndName) {

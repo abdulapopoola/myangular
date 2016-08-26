@@ -698,6 +698,64 @@ describe('$compile', function () {
                 }
             );
         });
+
+        it('does not set attributes to DOM when flag is false', function () {
+            registerAndCompile(
+                'myDirective',
+                '<my-directive attr="true"></my-directive>',
+                function (element, attrs) {
+                    attrs.$set('attr', 'false', false);
+                    expect(element.attr('attr')).toEqual('true');
+                }
+            );
+        });
+
+        it('shares attributes between directives', function () {
+            var attrs1, attrs2;
+            var injector = makeInjectorWithDirectives({
+                myDir: function () {
+                    return {
+                        compile: function (element, attrs) {
+                            attrs1 = attrs;
+                        }
+                    };
+                },
+                myOtherDir: function () {
+                    return {
+                        compile: function (element, attrs) {
+                            attrs2 = attrs;
+                        }
+                    };
+                }
+            });
+            injector.invoke(function ($compile) {
+                var el = $('<div my-dir my-other-dir></div>');
+                $compile(el);
+                expect(attrs1).toBe(attrs2);
+            });
+        });
+
+        it('sets prop for boolean attributes', function () {
+            registerAndCompile(
+                'myDirective',
+                '<input my-directive>',
+                function (element, attrs) {
+                    attrs.$set('disabled', true);
+                    expect(element.prop('disabled')).toBe(true);
+                }
+            );
+        });
+
+        it('sets prop for boolean attributes even when not flushing', function () {
+            registerAndCompile(
+                'myDirective',
+                '<input my-directive>',
+                function (element, attrs) {
+                    attrs.$set('disabled', true, false);
+                    expect(element.prop('disabled')).toBe(true);
+                }
+            );
+        });
     });
 
     it('returns a public link function from compile', function () {
