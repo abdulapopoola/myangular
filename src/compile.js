@@ -70,24 +70,62 @@ function $CompileProvider($provide) {
         }
     };
 
-    this.$get = ['$injector', function ($injector) {
+    this.$get = ['$injector', '$rootScope', function ($injector, $rootScope) {
         function Attributes(element) {
             this.$$element = element;
+            this.$attr = {};
         }
 
-        Attributes.prototype.$set = function (key, value, writeAttr) {
+        Attributes.prototype.$set = function (key, value, writeAttr, attrName) {
             this[key] = value;
-   
+
             if (isBooleanAttribute(this.$$element[0], key)) {
                 this.$$element.prop(key, value);
             }
 
+            if (!attrName) {
+                if (this.$attr[key]) {
+                    attrName = this.$attr[key];
+                } else {
+                    attrName = this.$attr[key] = _.kebabCase(key, '-');
+                }
+            } else {
+                this.$attr[key] = attrName;
+            }
+
             if (writeAttr !== false) {
-                this.$$element.attr(key, value);
+                this.$$element.attr(attrName, value);
+            }
+
+            if (this.$$observers) {
+                _.forEach(this.$$observers[key], function (observer) {
+                    try {
+                        observer(value);
+                    } catch (e) {
+                        console.log(e);
+                    }
+                });
             }
         };
 
+        Attributes.prototype.$observe = function (key, fn) {
+            var that = this;
+            this.$$observers = this.$$observers || Object.create(null);
+            this.$$observers[key] = this.$$observers[key] || [];
+            this.$$observers[key].push(fn);
+            $rootScope.$evalAsync(function () {
+                fn(that[key]);
+            });
+            return function () {
+                var index = that.$$observers[key].indexOf(fn);
+                if (index >= 0) {
+                    that.$$observers[key].splice(index, 1);
+                }
+            };
+        };
+
         function addDirective(directives, name, mode, attrStartName, attrEndName) {
+            var match;
             if (hasDirectives.hasOwnProperty(name)) {
                 var foundDirectives = $injector.get(name + 'Directive');
                 var applicableDirectives = _.filter(foundDirectives, function (dir) {
@@ -101,8 +139,10 @@ function $CompileProvider($provide) {
                         });
                     }
                     directives.push(directive);
+                    match = directive;
                 });
             }
+            return match;
         }
 
         function byPriority(a, b) {
@@ -196,6 +236,7 @@ function $CompileProvider($provide) {
 
         function collectDirectives(node, attrs) {
             var directives = [];
+            var match;
             if (node.nodeType === Node.ELEMENT_NODE) {
                 var normalizedNodeName = directiveNormalize(nodeName(node).toLowerCase());
                 addDirective(directives, normalizedNodeName, 'E');
@@ -209,7 +250,9 @@ function $CompileProvider($provide) {
                             normalizedAttrName[6].toLowerCase() +
                             normalizedAttrName.substring(7)
                         );
+                        normalizedAttrName = directiveNormalize(name.toLowerCase());
                     }
+                    attrs.$attr[normalizedAttrName] = name;
                     var directiveName = normalizedAttrName.replace(/(Start|End)$/, '');
                     if (directiveIsMultiElement(directiveName)) {
                         if (/Start$/.test(normalizedAttrName)) {
@@ -227,12 +270,18 @@ function $CompileProvider($provide) {
                         }
                     }
                 });
-                _.forEach(node.classList, function (cls) {
-                    var normalizedClassName = directiveNormalize(cls);
-                    addDirective(directives, normalizedClassName, 'C');
-                });
+                var className = node.className;
+                if (_.isString(className) && !_.isEmpty(className)) {
+                    while ((match = /([\d\w\-_]+)(?:\:([^;]+))?;?/.exec(className))) {
+                        var normalizedClassName = directiveNormalize(match[1]);
+                        if (addDirective(directives, normalizedClassName, 'C')) {
+                            attrs[normalizedClassName] = match[2] ? match[2].trim() : undefined;
+                        }
+                        className = className.substr(match.index + match[0].length);
+                    }
+                }
             } else if (node.nodeType === Node.COMMENT_NODE) {
-                var match = /^\s*directive\:\s*([\d\w\-_]+)/.exec(node.nodeValue);
+                match = /^\s*directive\:\s*([\d\w\-_]+)/.exec(node.nodeValue);
                 if (match) {
                     addDirective(directives, directiveNormalize(match[1]), 'M');
                 }
