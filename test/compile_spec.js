@@ -1236,6 +1236,131 @@ describe('$compile', function () {
                 expect(el.data('$scope')).toBe(givenScope);
             });
         });
+
+        it('creates an isolate scope when requested', function () {
+            var givenScope;
+            var injector = makeInjectorWithDirectives('myDirective', function () {
+                return {
+                    scope: {},
+                    link: function (scope) {
+                        givenScope = scope;
+                    }
+                };
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive></div>');
+                $compile(el)($rootScope);
+                expect(givenScope.$parent).toBe($rootScope);
+                expect(Object.getPrototypeOf(givenScope)).not.toBe($rootScope);
+            });
+        });
+
+        it('does not share isolate scope with other directives', function () {
+            var givenScope;
+            var injector = makeInjectorWithDirectives({
+                myDirective: function () {
+                    return {
+                        scope: {}
+                    };
+                },
+                myOtherDirective: function () {
+                    return {
+                        link: function (scope) {
+                            givenScope = scope;
+                        }
+                    };
+                }
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive my-other-directive></div>');
+                $compile(el)($rootScope);
+                expect(givenScope).toBe($rootScope);
+            });
+        });
+
+        it('does not use isolate scope on child elements', function () {
+            var givenScope;
+            var injector = makeInjectorWithDirectives({
+                myDirective: function () {
+                    return {
+                        scope: {}
+                    };
+                },
+                myOtherDirective: function () {
+                    return {
+                        link: function (scope) {
+                            givenScope = scope;
+                        }
+                    };
+                }
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive><div my-other-directive></div></div>');
+                $compile(el)($rootScope);
+                expect(givenScope).toBe($rootScope);
+            });
+        });
+
+        it('does not allow two isolate scope directives on an element', function () {
+            var injector = makeInjectorWithDirectives({
+                myDirective: function () {
+                    return {
+                        scope: {}
+                    };
+                },
+                myOtherDirective: function () {
+                    return {
+                        scope: {}
+                    };
+                }
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive my-other-directive></div>');
+                expect(function () {
+                    $compile(el);
+                }).toThrow();
+            });
+        });
+
+        it('does not allow both isolate and inherited scopes on an element', function () {
+            var injector = makeInjectorWithDirectives({
+                myDirective: function () {
+                    return {
+                        scope: {}
+                    };
+                },
+                myOtherDirective: function () {
+                    return {
+                        scope: true
+                    };
+                }
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive my-other-directive></div>');
+                expect(function () {
+                    $compile(el);
+                }).toThrow();
+            });
+        });
+
+        it('adds class and data for element with isolated scope', function () {
+            var givenScope;
+            var injector = makeInjectorWithDirectives('myDirective', function () {
+                return {
+                    scope: {},
+                    link: function (scope) {
+                        givenScope = scope;
+                    }
+                };
+            });
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive></div>');
+                $compile(el)($rootScope);
+                expect(el.hasClass('ng-isolate-scope')).toBe(true);
+                expect(el.hasClass('ng-scope')).toBe(false);
+                expect(el.data('$isolateScope')).toEqual(givenScope);
+            });
+        });
     });
 });
 
