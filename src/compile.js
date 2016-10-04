@@ -124,6 +124,27 @@ function $CompileProvider($provide) {
             };
         };
 
+        Attributes.prototype.$addClass = function (classVal) {
+            this.$$element.addClass(classVal);
+        };
+
+        Attributes.prototype.$removeClass = function (classVal) {
+            this.$$element.removeClass(classVal);
+        };
+
+        Attributes.prototype.$updateClass = function (newClassVal, oldClassVal) {
+            var newClasses = newClassVal.split(/\s+/);
+            var oldClasses = oldClassVal.split(/\s+/);
+            var addedClasses = _.difference(newClasses, oldClasses);
+            var removedClasses = _.difference(oldClasses, newClasses);
+            if (addedClasses.length) {
+                this.$addClass(addedClasses.join(' '));
+            }
+            if (removedClasses.length) {
+                this.$removeClass(removedClasses.join(' '));
+            }
+        };
+
         function addDirective(directives, name, mode, attrStartName, attrEndName) {
             var match;
             if (hasDirectives.hasOwnProperty(name)) {
@@ -281,9 +302,12 @@ function $CompileProvider($provide) {
                     }
                 }
             } else if (node.nodeType === Node.COMMENT_NODE) {
-                match = /^\s*directive\:\s*([\d\w\-_]+)/.exec(node.nodeValue);
+                match = /^\s*directive\:\s*([\d\w\-_]+)\s*(.*)$/.exec(node.nodeValue);
                 if (match) {
-                    addDirective(directives, directiveNormalize(match[1]), 'M');
+                    var normalizedName = directiveNormalize(match[1]);
+                    if (addDirective(directives, normalizedName, 'M')) {
+                        attrs[normalizedName] = match[2] ? match[2].trim() : undefined;
+                    }
                 }
             }
             directives.sort(byPriority);

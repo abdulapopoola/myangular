@@ -901,6 +901,53 @@ describe('$compile', function () {
                 }
             );
         });
+
+        it('adds an attribute with a value from a comment directive', function () {
+            registerAndCompile(
+                'myDirective',
+                '<!-- directive: my-directive and the attribute value -->',
+                function (element, attrs) {
+                    expect(attrs.hasOwnProperty('myDirective')).toBe(true);
+                    expect(attrs.myDirective).toEqual('and the attribute value');
+                }
+            );
+        });
+
+        it('allows adding classes', function () {
+            registerAndCompile(
+                'myDirective',
+                '<my-directive></my-directive>',
+                function (element, attrs) {
+                    attrs.$addClass('some-class');
+                    expect(element.hasClass('some-class')).toBe(true);
+                }
+            );
+        });
+
+        it('allows removing classes', function () {
+            registerAndCompile(
+                'myDirective',
+                '<my-directive class="some-class"></my-directive>',
+                function (element, attrs) {
+                    attrs.$removeClass('some-class');
+                    expect(element.hasClass('some-class')).toBe(false);
+                }
+            );
+        });
+
+        it('allows updating classes', function () {
+            registerAndCompile(
+                'myDirective',
+                '<my-directive class="one three four"></my-directive>',
+                function (element, attrs) {
+                    attrs.$updateClass('one two three', 'one three four');
+                    expect(element.hasClass('one')).toBe(true);
+                    expect(element.hasClass('two')).toBe(true);
+                    expect(element.hasClass('three')).toBe(true);
+                    expect(element.hasClass('four')).toBe(false);
+                }
+            );
+        });
     });
 
     it('returns a public link function from compile', function () {
