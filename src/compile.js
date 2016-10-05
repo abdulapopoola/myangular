@@ -37,6 +37,16 @@ function directiveNormalize(name) {
     return _.camelCase(name.replace(PREFIX_REGEXP, ''));
 }
 
+function parseIsolateBindings(scope) {
+    var bindings = {};
+    _.forEach(scope, function (definition, scopeName) {
+        bindings[scopeName] = {
+            mode: definition
+        };
+    });
+    return bindings;
+}
+
 function $CompileProvider($provide) {
     var hasDirectives = {};
 
@@ -55,6 +65,9 @@ function $CompileProvider($provide) {
                         directive.priority = directive.priority || 0;
                         if (directive.link && !directive.compile) {
                             directive.compile = _.constant(directive.link);
+                        }
+                        if (_.isObject(directive.scope)) {
+                            directive.$$isolateBindings = parseIsolateBindings(directive.scope);
                         }
                         directive.name = directive.name || name;
                         directive.index = i;
@@ -383,7 +396,7 @@ function $CompileProvider($provide) {
                         }
                         newIsolateScopeDirective = directive;
                     } else {
-                        if (newIsolateScopeDirective || newScopeDirective) {
+                        if (newIsolateScopeDirective) {
                             throw 'Multiple directives asking for new/inherited scope';
                         }
                         newScopeDirective = newScopeDirective || directive;
@@ -415,6 +428,20 @@ function $CompileProvider($provide) {
                     isolateScope = scope.$new(true);
                     $element.addClass('ng-isolate-scope');
                     $element.data('$isolateScope', isolateScope);
+                    _.forEach(
+                        newIsolateScopeDirective.$$isolateBindings,
+                        function (definition, scopeName) {
+                            switch (definition.mode) {
+                                case '@':
+                                    attrs.$observe(scopeName, function (newAttrValue) {
+                                        isolateScope[scopeName] = newAttrValue;
+                                    });
+                                    if (attrs[scopeName]) {
+                                        isolateScope[scopeName] = attrs[scopeName];
+                                    }
+                                    break;
+                            }
+                        });
                 }
 
                 _.forEach(preLinkFns, function (linkFn) {
