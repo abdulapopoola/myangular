@@ -40,8 +40,11 @@ function directiveNormalize(name) {
 function parseIsolateBindings(scope) {
     var bindings = {};
     _.forEach(scope, function (definition, scopeName) {
+        var match = definition.match(/\s*([@<=])(\??)\s*(\w*)\s*/);
         bindings[scopeName] = {
-            mode: definition
+            mode: match[1],
+            optional: match[2],
+            attrName: match[3] || scopeName
         };
     });
     return bindings;
@@ -83,7 +86,7 @@ function $CompileProvider($provide) {
         }
     };
 
-    this.$get = ['$injector', '$rootScope', function ($injector, $rootScope) {
+    this.$get = ['$injector', '$parse', '$rootScope', function ($injector, $parse, $rootScope) {
         function Attributes(element) {
             this.$$element = element;
             this.$attr = {};
@@ -431,15 +434,55 @@ function $CompileProvider($provide) {
                     _.forEach(
                         newIsolateScopeDirective.$$isolateBindings,
                         function (definition, scopeName) {
+                            var attrName = definition.attrName;
+                            var parentGet, unwatch;
                             switch (definition.mode) {
                                 case '@':
-                                    attrs.$observe(scopeName, function (newAttrValue) {
+                                    attrs.$observe(attrName, function (newAttrValue) {
                                         isolateScope[scopeName] = newAttrValue;
                                     });
-                                    if (attrs[scopeName]) {
-                                        isolateScope[scopeName] = attrs[scopeName];
+                                    if (attrs[attrName]) {
+                                        isolateScope[scopeName] = attrs[attrName];
                                     }
                                     break;
+                                case '<':
+                                    if (definition.optional && !attrs[attrName]) {
+                                        break;
+                                    }
+                                    parentGet = $parse(attrs[attrName]);
+                                    isolateScope[scopeName] = parentGet(scope);
+                                    scope.$watch(parentGet, function (newValue) {
+                                        isolateScope[scopeName] = newValue;
+                                    });
+                                    unwatch = scope.$watch(parentGet, function (newValue) {
+                                        isolateScope[scopeName] = newValue;
+                                    });
+                                    isolateScope.$on('$destroy', unwatch);
+                                    break;
+                                case '=':
+                                    if (definition.optional && !attrs[attrName]) {
+                                        break;
+                                    }
+                                    parentGet = $parse(attrs[attrName]);
+                                    var lastValue = isolateScope[scopeName] = parentGet(scope);
+                                    isolateScope[scopeName] = parentGet(scope);
+                                    var parentValueWatch = function () {
+                                        var parentValue = parentGet(scope);
+                                        if (isolateScope[scopeName] !== parentValue) {
+                                            if (parentValue !== lastValue) {
+                                                isolateScope[scopeName] = parentValue;
+                                            } else {
+                                                parentValue = isolateScope[scopeName];
+                                                parentGet.assign(scope, parentValue);
+                                            }
+                                        }
+                                        lastValue = parentValue;
+                                        return lastValue;
+                                    };
+                                    unwatch = scope.$watch(parentValueWatch);
+                                    isolateScope.$on('$destroy', unwatch);
+                                    break;
+
                             }
                         });
                 }
