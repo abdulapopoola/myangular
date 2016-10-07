@@ -40,11 +40,12 @@ function directiveNormalize(name) {
 function parseIsolateBindings(scope) {
     var bindings = {};
     _.forEach(scope, function (definition, scopeName) {
-        var match = definition.match(/\s*([@<=])(\??)\s*(\w*)\s*/);
+        var match = definition.match(/\s*([@<&]|=(\*?))(\??)\s*(\w*)\s*/);
         bindings[scopeName] = {
-            mode: match[1],
-            optional: match[2],
-            attrName: match[3] || scopeName
+            mode: match[1][0],
+            collection: match[2] === '*',
+            optional: match[3],
+            attrName: match[4] || scopeName
         };
     });
     return bindings;
@@ -103,7 +104,7 @@ function $CompileProvider($provide) {
                 if (this.$attr[key]) {
                     attrName = this.$attr[key];
                 } else {
-                    attrName = this.$attr[key] = _.kebabCase(key, '-');
+                    attrName = this.$attr[key] = _.kebabCase(key);
                 }
             } else {
                 this.$attr[key] = attrName;
@@ -300,6 +301,7 @@ function $CompileProvider($provide) {
                     }
                     normalizedAttrName = directiveNormalize(name.toLowerCase());
                     addDirective(directives, normalizedAttrName, 'A', attrStartName, attrEndName);
+                    attr[normalizedAttrName] = attr.value.trim();
                     if (isNgAttr || !attrs.hasOwnProperty(normalizedAttrName)) {
                         attrs[normalizedAttrName] = attr.value.trim();
                         if (isBooleanAttribute(node, normalizedAttrName)) {
@@ -378,7 +380,7 @@ function $CompileProvider($provide) {
                     if (attrStart) {
                         postLinkFn = groupElementsLinkFnWrapper(postLinkFn, attrStart, attrEnd);
                     }
-                    postLinkFns.isolateScope = isolateScope;
+                    postLinkFn.isolateScope = isolateScope;
                     postLinkFns.push(postLinkFn);
                 }
             }
@@ -479,10 +481,22 @@ function $CompileProvider($provide) {
                                         lastValue = parentValue;
                                         return lastValue;
                                     };
-                                    unwatch = scope.$watch(parentValueWatch);
+                                    if (definition.collection) {
+                                        unwatch = scope.$watchCollection(attrs[attrName], parentValueWatch);
+                                    } else {
+                                        unwatch = scope.$watch(parentValueWatch);
+                                    }
                                     isolateScope.$on('$destroy', unwatch);
                                     break;
-
+                                case '&':
+                                    var parentExpr = $parse(attrs[attrName]);
+                                    if (parentExpr === _.noop && definition.optional) {
+                                        break;
+                                    }
+                                    isolateScope[scopeName] = function (locals) {
+                                        return parentExpr(scope, locals);
+                                    };
+                                    break;
                             }
                         });
                 }
