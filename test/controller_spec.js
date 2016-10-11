@@ -236,5 +236,138 @@ describe('$controller', function () {
                 expect(gotAttrs.anAttr).toEqual('abc');
             });
         });
+
+        it('can be attached on the scope', function () {
+            function MyController() { }
+            var injector = createInjector(['ng',
+                function ($controllerProvider, $compileProvider) {
+                    $controllerProvider.register('MyController', MyController);
+                    $compileProvider.directive('myDirective', function () {
+                        return {
+                            controller: 'MyController',
+                            controllerAs: 'myCtrl'
+                        };
+                    });
+                }]);
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive></div>');
+                $compile(el)($rootScope);
+                expect($rootScope.myCtrl).toBeDefined();
+                expect($rootScope.myCtrl instanceof MyController).toBe(true);
+            });
+        });
+
+        it('gets isolate scope as injected $scope', function () {
+            var gotScope;
+            function MyController($scope) {
+                gotScope = $scope;
+            }
+            var injector = createInjector(['ng',
+                function ($controllerProvider, $compileProvider) {
+                    $controllerProvider.register('MyController', MyController);
+                    $compileProvider.directive('myDirective', function () {
+                        return {
+                            scope: {},
+                            controller: 'MyController'
+                        };
+                    });
+                }]);
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive></div>');
+                $compile(el)($rootScope);
+                expect(gotScope).not.toBe($rootScope);
+            });
+        });
+
+        it('has isolate scope bindings available during construction', function () {
+            var gotMyAttr;
+            function MyController($scope) {
+                gotMyAttr = $scope.myAttr;
+            }
+            var injector = createInjector(['ng',
+                function ($controllerProvider, $compileProvider) {
+                    $controllerProvider.register('MyController', MyController);
+                    $compileProvider.directive('myDirective', function () {
+                        return {
+                            scope: {
+                                myAttr: '@myDirective'
+                            },
+                            controller: 'MyController'
+                        };
+                    });
+                }]);
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive="abc"></div>');
+                $compile(el)($rootScope);
+                expect(gotMyAttr).toEqual('abc');
+            });
+        });
+
+        it('can bind isolate scope bindings directly to self', function () {
+            var gotMyAttr;
+            function MyController() {
+                gotMyAttr = this.myAttr;
+            }
+            var injector = createInjector(['ng',
+                function ($controllerProvider, $compileProvider) {
+                    $controllerProvider.register('MyController', MyController);
+                    $compileProvider.directive('myDirective', function () {
+                        return {
+                            scope: {
+                                myAttr: '@myDirective'
+                            },
+                            controller: 'MyController',
+                            bindToController: true
+                        };
+                    });
+                }]);
+            injector.invoke(function ($compile, $rootScope) {
+                var el = $('<div my-directive="abc"></div>');
+                $compile(el)($rootScope);
+                expect(gotMyAttr).toEqual('abc');
+            });
+        });
+
+        it('can return a semi-constructed controller', function () {
+            var injector = createInjector(['ng']);
+            var $controller = injector.get('$controller');
+            function MyController() {
+                this.constructed = true;
+                this.myAttrWhenConstructed = this.myAttr;
+            }
+            var controller = $controller(MyController, null, true);
+            expect(controller.constructed).toBeUndefined();
+            expect(controller.instance).toBeDefined();
+            controller.instance.myAttr = 42;
+            var actualController = controller();
+            expect(actualController.constructed).toBeDefined();
+            expect(actualController.myAttrWhenConstructed).toBe(42);
+        });
+
+        it('can return a semi-constructed ctrl when using array injection', function () {
+            var injector = createInjector(['ng', function ($provide) {
+                $provide.constant('aDep', 42);
+            }]);
+            var $controller = injector.get('$controller');
+            function MyController(aDep) {
+                this.aDep = aDep;
+                this.constructed = true;
+            }
+            var controller = $controller(['aDep', MyController], null, true);
+            expect(controller.constructed).toBeUndefined();
+            var actualController = controller();
+            expect(actualController.constructed).toBeDefined();
+            expect(actualController.aDep).toBe(42);
+        });
+
+        it('can bind semi-constructed controller to scope', function () {
+            var injector = createInjector(['ng']);
+            var $controller = injector.get('$controller');
+            function MyController() {
+            }
+            var scope = {};
+            var controller = $controller(MyController, { $scope: scope }, true, 'myCtrl');
+            expect(scope.myCtrl).toBe(controller.instance);
+        });
     });
 });
