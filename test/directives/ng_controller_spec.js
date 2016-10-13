@@ -1,10 +1,11 @@
 'use strict';
 
-var $ = require('jquery');
+var $  = require('jquery');
 var publishExternalAPI = require('../../src/angular_public');
 var createInjector = require('../../src/injector');
 
 describe('ngController', function () {
+
     beforeEach(function () {
         delete window.angular;
         publishExternalAPI();
@@ -63,7 +64,7 @@ describe('ngController', function () {
 
     it('allows aliasing controller in expression', function () {
         var gotScope;
-        function MyController($scope) {
+        function MyController($scope, $element, $attrs) {
             gotScope = $scope;
         }
         var injector = createInjector(['ng', function ($controllerProvider) {
@@ -76,4 +77,5 @@ describe('ngController', function () {
             expect(gotScope.myCtrl instanceof MyController).toBe(true);
         });
     });
+
 });
