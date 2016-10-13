@@ -4,6 +4,7 @@ var _ = require('lodash');
 var $ = require('jquery');
 
 var PREFIX_REGEXP = /(x[\:\-_]|data[\:\-_])/i;
+var REQUIRE_PREFIX_REGEXP = /^(\^\^?)?(\?)?(\^\^?)?/;
 
 var BOOLEAN_ATTRS = {
     multiple: true,
@@ -71,8 +72,10 @@ function getDirectiveRequire(directive, name) {
     var require = directive.require || (directive.controller && name);
     if (!_.isArray(require) && _.isObject(require)) {
         _.forEach(require, function (value, key) {
-            if (!value.length) {
-                require[key] = key;
+            var prefix = value.match(REQUIRE_PREFIX_REGEXP);
+            var name = value.substring(prefix[0].length);
+            if (!name) {
+                require[key] = prefix[0] + key;
             }
         });
     }
@@ -463,18 +466,42 @@ function $CompileProvider($provide) {
 
                 function getControllers(require, $element) {
                     if (_.isArray(require)) {
-                        return _.map(require, getControllers, $element);
+                        return _.map(require, function (r) {
+                            return getControllers(r, $element);
+                        });
                     } else if (_.isObject(require)) {
-                        return _.mapValues(require, getControllers, $element);
+                        return _.mapValues(require, function (r) {
+                            return getControllers(r, $element);
+                        });
                     } else {
                         var value;
-                        if (controllers[require]) {
-                            value = controllers[require].instance;
+                        var match = require.match(REQUIRE_PREFIX_REGEXP);
+                        var optional = match[2];
+                        require = require.substring(match[0].length);
+                        if (match[1] || match[3]) {
+                            if (match[3] && !match[1]) {
+                                match[1] = match[3];
+                            }
+                            if (match[1] === '^^') {
+                                $element = $element.parent();
+                            }
+                            while ($element.length) {
+                                value = $element.data('$' + require + 'Controller');
+                                if (value) {
+                                    break;
+                                } else {
+                                    $element = $element.parent();
+                                }
+                            }
+                        } else {
+                            if (controllers[require]) {
+                                value = controllers[require].instance;
+                            }
                         }
-                        if (!value) {
+                        if (!value && !optional) {
                             throw 'Controller ' + require + ' required by directive, cannot be found!';
                         }
-                        return value;
+                        return value || null;
                     }
                 }
 
@@ -594,6 +621,16 @@ function $CompileProvider($provide) {
 
                     _.forEach(controllers, function (controller) {
                         controller();
+                    });
+
+                    _.forEach(controllerDirectives, function (controllerDirective, name) {
+                        var require = controllerDirective.require;
+                        if (_.isObject(require) && !_.isArray(require) &&
+                            controllerDirective.bindToController) {
+                            var controller = controllers[controllerDirective.name].instance;
+                            var requiredControllers = getControllers(require, $element);
+                            _.assign(controller, requiredControllers);
+                        }
                     });
 
                     _.forEach(preLinkFns, function (linkFn) {
