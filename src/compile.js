@@ -560,6 +560,11 @@ function $CompileProvider($provide) {
                         controllerDirectives = controllerDirectives || {};
                         controllerDirectives[directive.name] = directive;
                     }
+                    if (directive.transclude) {
+                        var $transcludedNodes = $compileNode.clone().contents();
+                        compile($transcludedNodes)
+                        $compileNode.empty();
+                    }
                     if (directive.template) {
                         if (templateDirective) {
                             throw 'Multiple directives asking for template';
