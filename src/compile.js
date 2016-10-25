@@ -2,6 +2,7 @@
 
 var _ = require('lodash');
 var $ = require('jquery');
+var identifierForController = require('./controller').identifierForController;
 
 var PREFIX_REGEXP = /(x[\:\-_]|data[\:\-_])/i;
 var BOOLEAN_ATTRS = {
@@ -79,9 +80,41 @@ function getDirectiveRequire(directive, name) {
     return require;
 }
 
-function $CompileProvider($provide) {
+function makeInjectable(template, $injector) {
+    if (_.isFunction(template) || _.isArray(template)) {
+        return function (element, attrs) {
+            return $injector.invoke(template, this, {
+                $element: element,
+                $attrs: attrs
+            });
+        };
+    } else {
+        return template;
+    }
+}
 
+function $CompileProvider($provide) {
     var hasDirectives = {};
+
+    this.component = function (name, options) {
+        function factory($injector) {
+            return {
+                restrict: 'E',
+                controller: options.controller,
+                controllerAs: options.controllerAs ||
+                identifierForController(options.controller) ||
+                '$ctrl',
+                scope: {},
+                bindToController: options.bindings || {},
+                template: makeInjectable(options.template, $injector),
+                templateUrl: makeInjectable(options.templateUrl, $injector),
+                transclude: options.transclude,
+                require: options.require
+            };
+        }
+        factory.$inject = ['$injector'];
+        return this.directive(name, factory);
+    };
 
     this.directive = function (name, directiveFactory) {
         if (_.isString(name)) {
@@ -428,6 +461,7 @@ function $CompileProvider($provide) {
             }
 
             function initializeDirectiveBindings(scope, attrs, destination, bindings, newScope) {
+                var initialChanges = {};
                 _.forEach(bindings, function (definition, scopeName) {
                     var attrName = definition.attrName;
                     var parentGet, unwatch;
@@ -488,6 +522,7 @@ function $CompileProvider($provide) {
                             break;
                     }
                 });
+                return initialChanges;
             }
 
             function addDirective(directives, name, mode, maxPriority, attrStartName, attrEndName) {
@@ -810,6 +845,18 @@ function $CompileProvider($provide) {
                         }
                     });
 
+                    _.forEach(controllers, function (controller) {
+                        var controllerInstance = controller.instance;
+                        if (controllerInstance.$onInit) {
+                            controllerInstance.$onInit();
+                        }
+                        if (controllerInstance.$onDestroy) {
+                            (newIsolateScopeDirective ? isolateScope : scope).$on('$destroy', function () {
+                                controllerInstance.$onDestroy();
+                            });
+                        }
+                    });
+
                     function scopeBoundTranscludeFn(transcludedScope, cloneAttachFn) {
                         var transcludeControllers;
                         if (!transcludedScope || !transcludedScope.$watch ||
@@ -850,6 +897,13 @@ function $CompileProvider($provide) {
                             linkFn.require && getControllers(linkFn.require, $element),
                             scopeBoundTranscludeFn
                         );
+                    });
+
+                    _.forEach(controllers, function (controller) {
+                        var controllerInstance = controller.instance;
+                        if (controllerInstance.$postLink) {
+                            controllerInstance.$postLink();
+                        }
                     });
                 }
 

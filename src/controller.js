@@ -1,6 +1,7 @@
 'use strict';
 
 var _ = require('lodash');
+var CNTRL_REG = /^(\S+)(\s+as\s+(\w+))?/;
 
 function addToScope(locals, identifier, instance) {
     if (locals && _.isObject(locals.$scope)) {
@@ -8,6 +9,15 @@ function addToScope(locals, identifier, instance) {
     } else {
         throw 'Cannot export controller as ' + identifier +
         '! No $scope object provided via locals';
+    }
+}
+
+function identifierForController(ctrl) {
+    if (_.isString(ctrl)) {
+        var match = CNTRL_REG.exec(ctrl);
+        if (match) {
+            return match[3];
+        }
     }
 }
 
@@ -34,7 +44,7 @@ function $ControllerProvider() {
     this.$get = ['$injector', function ($injector) {
         return function (ctrl, locals, later, identifier) {
             if (_.isString(ctrl)) {
-                var match = ctrl.match(/^(\S+)(\s+as\s+(\w+))?/);
+                var match = ctrl.match(CNTRL_REG);
                 ctrl = match[1];
                 identifier = identifier || match[3];
                 if (controllers.hasOwnProperty(ctrl)) {
@@ -65,4 +75,7 @@ function $ControllerProvider() {
         };
     }];
 }
-module.exports = $ControllerProvider;
+module.exports = {
+    $ControllerProvider: $ControllerProvider,
+    identifierForController: identifierForController
+};
