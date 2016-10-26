@@ -24,6 +24,16 @@ var BOOLEAN_ELEMENTS = {
     DETAILS: true
 };
 var REQUIRE_PREFIX_REGEXP = /^(\^\^?)?(\?)?(\^\^?)?/;
+function UNINITIALIZED_VALUE() { }
+var _UNINITIALIZED_VALUE = new UNINITIALIZED_VALUE();
+
+function SimpleChange(previous, current) {
+    this.previousValue = previous;
+    this.currentValue = current;
+}
+SimpleChange.prototype.isFirstChange = function () {
+    return this.previousValue === _UNINITIALIZED_VALUE;
+};
 
 function nodeName(element) {
     return element.nodeName ? element.nodeName : element[0].nodeName;
@@ -96,6 +106,15 @@ function makeInjectable(template, $injector) {
 function $CompileProvider($provide) {
     var hasDirectives = {};
 
+    var TTL = 10;
+    this.onChangesTtl = function (value) {
+        if (arguments.length) {
+            TTL = value;
+            return this;
+        }
+        return TTL;
+    };
+
     this.component = function (name, options) {
         function factory($injector) {
             return {
@@ -150,6 +169,27 @@ function $CompileProvider($provide) {
 
     this.$get = ['$injector', '$parse', '$controller', '$rootScope', '$http', '$interpolate',
         function ($injector, $parse, $controller, $rootScope, $http, $interpolate) {
+            var onChangesQueue;
+            var onChangesTtl = TTL;
+
+            function flushOnChanges() {
+                try {
+                    onChangesTtl--;
+                    if (!onChangesTtl) {
+                        onChangesQueue = null;
+                        throw TTL + ' $onChanges() iterations reached. Aborting!';
+                    }
+                    $rootScope.$apply(function () {
+                        _.forEach(onChangesQueue, function (onChangesHook) {
+                            onChangesHook();
+                        });
+                        onChangesQueue = null;
+                    });
+                } finally {
+                    onChangesTtl++;
+                }
+            }
+
             var startSymbol = $interpolate.startSymbol();
             var endSymbol = $interpolate.endSymbol();
             var denormalizeTemplate = (startSymbol === '{{' && endSymbol === '}}') ?
@@ -312,9 +352,14 @@ function $CompileProvider($provide) {
                                     if (!transcludedScope) {
                                         transcludedScope = scope.$new(false, containingScope);
                                     }
-                                    return linkFn.nodeLinkFn.transclude(transcludedScope, cloneAttachFn, {
-                                        transcludeControllers: transcludeControllers
+                                    var didTransclude = linkFn.nodeLinkFn.transclude(transcludedScope, cloneAttachFn, {
+                                        transcludeControllers: transcludeControllers,
+                                        parentBoundTranscludeFn: parentBoundTranscludeFn
                                     });
+                                    if (didTransclude.length === 0 && parentBoundTranscludeFn) {
+                                        didTransclude = parentBoundTranscludeFn(transcludedScope, cloneAttachFn);
+                                    }
+                                    return didTransclude;
                                 };
                             } else if (parentBoundTranscludeFn) {
                                 boundTranscludeFn = parentBoundTranscludeFn;
@@ -426,7 +471,6 @@ function $CompileProvider($provide) {
                         normalizedAttrName = directiveNormalize(name.toLowerCase());
                         addAttrInterpolateDirective(directives, attr.value, normalizedAttrName);
                         addDirective(directives, normalizedAttrName, 'A', maxPriority, attrStartName, attrEndName);
-                        attr[normalizedAttrName] = attr.value.trim();
                         if (isNgAttr || !attrs.hasOwnProperty(normalizedAttrName)) {
                             attrs[normalizedAttrName] = attr.value.trim();
                             if (isBooleanAttribute(node, normalizedAttrName)) {
@@ -462,17 +506,48 @@ function $CompileProvider($provide) {
 
             function initializeDirectiveBindings(scope, attrs, destination, bindings, newScope) {
                 var initialChanges = {};
+                var changes;
+
+                function triggerOnChanges() {
+                    try {
+                        destination.$onChanges(changes);
+                    } finally {
+                        changes = null;
+                    }
+                }
+
+                function recordChanges(key, currentValue, previousValue) {
+                    if (destination.$onChanges && currentValue !== previousValue) {
+                        if (!onChangesQueue) {
+                            onChangesQueue = [];
+                            $rootScope.$$postDigest(flushOnChanges);
+                        }
+                        if (!changes) {
+                            changes = {};
+                            onChangesQueue.push(triggerOnChanges);
+                        }
+                        if (changes[key]) {
+                            previousValue = changes[key].previousValue;
+                        }
+                        changes[key] = new SimpleChange(previousValue, currentValue);
+                    }
+                }
+
                 _.forEach(bindings, function (definition, scopeName) {
                     var attrName = definition.attrName;
                     var parentGet, unwatch;
                     switch (definition.mode) {
                         case '@':
                             attrs.$observe(attrName, function (newAttrValue) {
+                                var oldValue = destination[scopeName];
                                 destination[scopeName] = newAttrValue;
+                                recordChanges(scopeName, destination[scopeName], oldValue);
                             });
                             if (attrs[attrName]) {
                                 destination[scopeName] = $interpolate(attrs[attrName])(scope);
                             }
+                            initialChanges[scopeName] =
+                                new SimpleChange(_UNINITIALIZED_VALUE, destination[scopeName]);
                             break;
                         case '<':
                             if (definition.optional && !attrs[attrName]) {
@@ -481,9 +556,13 @@ function $CompileProvider($provide) {
                             parentGet = $parse(attrs[attrName]);
                             destination[scopeName] = parentGet(scope);
                             unwatch = scope.$watch(parentGet, function (newValue) {
+                                var oldValue = destination[scopeName];
                                 destination[scopeName] = newValue;
+                                recordChanges(scopeName, destination[scopeName], oldValue);
                             });
                             newScope.$on('$destroy', unwatch);
+                            initialChanges[scopeName] =
+                                new SimpleChange(_UNINITIALIZED_VALUE, destination[scopeName]);
                             break;
                         case '=':
                             if (definition.optional && !attrs[attrName]) {
@@ -823,7 +902,7 @@ function $CompileProvider($provide) {
 
                     var scopeDirective = newIsolateScopeDirective || newScopeDirective;
                     if (scopeDirective && controllers[scopeDirective.name]) {
-                        initializeDirectiveBindings(
+                        controllers[scopeDirective.name].initialChanges = initializeDirectiveBindings(
                             scope,
                             attrs,
                             controllers[scopeDirective.name].instance,
@@ -849,6 +928,9 @@ function $CompileProvider($provide) {
                         var controllerInstance = controller.instance;
                         if (controllerInstance.$onInit) {
                             controllerInstance.$onInit();
+                        }
+                        if (controllerInstance.$onChanges) {
+                            controllerInstance.$onChanges(controller.initialChanges);
                         }
                         if (controllerInstance.$onDestroy) {
                             (newIsolateScopeDirective ? isolateScope : scope).$on('$destroy', function () {
