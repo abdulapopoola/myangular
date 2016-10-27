@@ -12,15 +12,17 @@
     "karma-phantomjs-launcher": "^1.0.0",
     "phantomjs-prebuilt": "^2.1.7",
     "sinon": "^1.17.4",
+    "uglifyjs": "^2.4.10",
     "watchify": "^3.7.0"
   },
   "scripts": {
     "lint": "jshint src test",
-    "test": "karma start"
+    "test": "karma start",
+    "build": "browserify src/bootstrap.js > myangular.js",
+    "build:minified": "browserify src/bootstrap.js | uglifyjs -mc > myangular.min.js"
   },
   "dependencies": {
     "jquery": "^2.2.3",
     "lodash": "^4.11.2"
   }
 }
- 
